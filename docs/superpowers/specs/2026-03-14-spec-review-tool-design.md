@@ -15,22 +15,22 @@ A CLI tool (`spectral`) that opens a spec file in a reviewable UI, lets the user
 ## Architecture
 
 ```
-┌─────────────────────────────────────────┐
-│  Protocol: JSON schema (language-agnostic) │
-├─────────────────────────────────────────┤
-│  CLI: spectral <file> [--nvim|--web]    │
-├──────────────┬──────────────────────────┤
-│  Neovim Plugin│  Web UI                 │
-│  (Lua)        │  (React/Express)        │
-│  v1           │  v2                     │
-└──────────────┴──────────────────────────┘
+┌──────────────────────────────────────────────┐
+│  Protocol: JSON schema (language-agnostic)   │
+├──────────────────────────────────────────────┤
+│  CLI: spectral <file> [--tui|--nvim|--web]   │
+├──────────┬──────────────┬────────────────────┤
+│ Built-in │ Neovim Plugin│  Web UI            │
+│ TUI      │ (Lua)        │  (React/Express)   │
+│ v1       │ v2           │  v2                │
+└──────────┴──────────────┴────────────────────┘
 ```
 
 Three layers:
 
 - **Protocol** — A JSON schema defining review comments. Language-agnostic. Any UI that outputs this format works with Claude Code.
 - **CLI** — Node-based entry point. Manages file lifecycle (draft/final/resume/cleanup), spawns the chosen UI, blocks until review is done, prints the output path.
-- **UI Adapters** — Neovim plugin (v1), web UI (v2), future touch/iPad client. Each reads the spec + existing review threads, lets the user add messages, writes to the draft JSON.
+- **UI Adapters** — Built-in TUI pager (v1), neovim plugin (v2), web UI (v2), future touch/iPad client. Each reads the spec + existing review threads, lets the user add messages, writes to the draft JSON.
 
 ## Protocol
 
@@ -179,56 +179,46 @@ spectral <file.md> --web    # web UI (v2)
    - **Has review file:** print `<review-file-path>` and exit 0 (there may be `discussed` threads needing attention)
    - **No review file:** print nothing and exit 0 (first round, human closed without commenting)
 
-### CLI→Plugin Interface
+### CLI→UI Interface
 
-The CLI communicates with the neovim plugin via environment variables set before spawning neovim:
+The CLI communicates with UI adapters via environment variables:
 
 - `SPECTRAL_FILE` — absolute path to the spec markdown file
 - `SPECTRAL_REVIEW` — absolute path to the review JSON file (read existing threads)
 - `SPECTRAL_DRAFT` — absolute path to the draft JSON file (write new threads/messages here)
 
-```bash
-SPECTRAL_FILE=/path/to/spec.md \
-SPECTRAL_REVIEW=/path/to/spec.review.json \
-SPECTRAL_DRAFT=/path/to/spec.review.draft.json \
-nvim -c "lua require('spectral').start()" /path/to/spec.md
-```
+For the built-in TUI (v1), these are used internally. For external adapters (neovim plugin, v2), they are set as env vars before spawning the process.
 
 ### Tech
 
 - Node.js (TypeScript)
-- Spawns neovim as a child process (v1), starts Express server (v2)
+- Renders the built-in TUI (v1), spawns neovim (v2), or starts Express server (v2)
 - Single entry point, swappable UI backend
 
-## Neovim Plugin (v1)
+## Built-in TUI (v1)
 
 ### UX
 
-On subsequent rounds (after the AI has edited the spec), the plugin opens in **diff + review mode** using neovim's built-in diff. The previous spec version (from git) is shown alongside the current version, with comment overlays on the right side. This lets the human see exactly what the AI changed without re-reading the whole spec.
-
-```
-┌─ Previous (git) ──────────────────┬─ Current (AI edits) ──────────────────────┐
-│ 12  The system uses a webhook...  │ 12  The system uses polling...  ✅ changed │
-│                                   │                                            │
-│ 45  Events are sent via webhook   │ 45  Events are sent via webhook 💬 ambig.  │
-│                                   │ 46                              🤖 clear…  │
-│                                   │                                            │
-│ 20  The retry logic should        │ 20  ┃ The retry logic should   💬 rethink  │
-│ 21  handle exponential backoff    │ 21  ┃ handle exponential backoff           │
-└───────────────────────────────────┴────────────────────────────────────────────┘
-```
-
-On the first round (no prior version), the plugin opens in single-buffer review mode:
+A terminal pager that renders the spec with line numbers, status indicators, and inline comment hints. No external dependencies — ships with the CLI.
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
 │ docs/specs/2026-03-14-feature-design.md             [Review] │
+│ Lines: 228  Threads: 3 open, 2 addressed, 1 discussed       │
 ├──────────────────────────────────────────────────────────────┤
 │ 12  The system uses polling...    ✅ changed to polling      │
+│ 13  to notify downstream                                     │
+│ 14                                                           │
 │ 45  Events are sent via webhook   💬 this term is ambiguous  │
 │ 46                                   🤖 I think it's clear…  │
-│ 20  ┃ The retry logic should      💬 rethink this section    │
-│ 21  ┃ handle exponential backoff                             │
+│ 47                                                           │
+│ 20  The retry logic should        💬 rethink this section    │
+│ 21  handle exponential backoff                               │
+│ 22  with a maximum of 5 retries                              │
+│ 23  before dead-lettering                                    │
+├──────────────────────────────────────────────────────────────┤
+│ j/k scroll  c comment  e expand  r resolve  R resolve all    │
+│ a approve   d delete   l list    n/N next/prev   q quit      │
 └──────────────────────────────────────────────────────────────┘
 
 Status indicators:
@@ -238,7 +228,7 @@ Status indicators:
   ✔  resolved — human accepted
 ```
 
-The expand view (`<leader>me`) shows the full thread in a floating window:
+Pressing `e` on a line with a thread expands it inline:
 
 ```
 ┌─ Thread #2 (discussed) ─────────────────────────┐
@@ -252,64 +242,62 @@ The expand view (`<leader>me`) shows the full thread in a floating window:
 └──────────────────────────────────────────────────┘
 ```
 
-### Keybindings (configurable)
+On subsequent rounds, the TUI shows a diff header highlighting what the AI changed (lines added/removed/modified since the last review), so the human doesn't need to re-read the whole spec. Changed lines are highlighted in the pager.
 
-| Key | Mode | Action |
-|-----|------|--------|
-| `<leader>mc` | Normal | Add comment on current line / reply to existing thread |
-| `<leader>mc` | Visual | Add comment on selected region |
-| `<leader>me` | Normal | Expand thread under cursor (full markdown, actions) |
-| `<leader>mr` | Normal | Resolve thread under cursor |
-| `<leader>mR` | Normal | Resolve all `discussed` threads (batch resolve) |
-| `<leader>ma` | Normal | Approve spec — all threads must be resolved/addressed/outdated first |
-| `<leader>md` | Normal | Delete own draft message under cursor (rewrites draft file; only works on unsubmitted messages, not on the review file) |
-| `<leader>ml` | Normal | List all open threads (quickfix) |
-| `]c` | Normal | Jump to next open thread |
-| `[c` | Normal | Jump to previous open thread |
+### Keybindings
+
+| Key | Action |
+|-----|--------|
+| `j` / `k` / `↑` / `↓` | Scroll line by line |
+| `Space` / `b` | Page down / up |
+| `c` | Add comment on current line / reply to existing thread |
+| `e` | Expand thread on current line |
+| `r` | Resolve thread on current line |
+| `R` | Resolve all `discussed` threads (batch resolve) |
+| `a` | Approve spec — all threads must be resolved/addressed/outdated first |
+| `d` | Delete own draft comment on current line |
+| `l` | List all open threads (jump to selected) |
+| `n` / `N` | Jump to next / previous open thread |
+| `q` | Quit and submit review |
 
 ### Approve Mechanism
 
-When the human presses `<leader>ma`:
+When the human presses `a`:
 
-1. Plugin checks all threads are `addressed`, `resolved`, or `outdated`. If not, shows an error ("N threads still open/discussed").
-2. Plugin writes `{ "approved": true }` to `$SPECTRAL_DRAFT` and exits neovim.
+1. TUI checks all threads are `addressed`, `resolved`, or `outdated`. If not, shows an error ("N threads still open/discussed").
+2. TUI writes `{ "approved": true }` to `$SPECTRAL_DRAFT` and exits.
 3. CLI reads the draft, detects the `approved` flag, prints `APPROVED: <review-file-path>` to stdout.
 
-### Diff Mode
+### Diff Highlighting
 
-On subsequent rounds (when a `.review.json` exists with AI responses), the plugin opens in diff mode:
+On subsequent rounds (when a `.review.json` exists with AI responses), the TUI highlights lines that changed since the last review:
 
-- **Left buffer:** previous spec version from git (`git show HEAD~1:<spec-file>` — the version before the AI's latest commit)
-- **Right buffer:** current spec file (with AI edits), read-only, with comment overlays
-- **First round** (no `.review.json` or no AI responses): single-buffer mode, no diff
-
-If the spec has no git history (never committed), falls back to single-buffer mode.
+- Changed lines are computed from `git diff HEAD~1 -- <spec-file>`
+- Added lines shown with `+` gutter marker
+- Modified lines shown with `~` gutter marker
+- First round (no git history): no diff markers
 
 ### Implementation
 
-- Pure Lua, no dependencies beyond neovim
-- Comments stored as buffer-local data, rendered via extmarks (`virt_text_pos = 'eol'`) in a dedicated namespace
-- Gutter signs for lines with comments, sign column markers for regions
-- On open — plugin reads `$SPECTRAL_REVIEW` if it exists (missing file = first review, start fresh), loads existing threads including AI responses. Checks `$SPECTRAL_DRAFT` for in-progress human comments (resume)
-- On `:w` — plugin writes the draft JSON to `$SPECTRAL_DRAFT` (full draft rewrite, not append)
-- On `:q` / `VimLeave` — plugin writes final draft to `$SPECTRAL_DRAFT` (CLI handles merge to review file)
+- Built into the CLI (Node.js/TypeScript)
+- Uses a terminal UI library (e.g., `ink`, `blessed`, or raw ANSI escape codes)
+- Reads `$SPECTRAL_REVIEW` if it exists (missing file = first review, start fresh), loads existing threads
+- Checks `$SPECTRAL_DRAFT` for in-progress comments (resume)
+- On `q` — writes draft JSON to `$SPECTRAL_DRAFT` (CLI handles merge to review file)
+- On save (auto, periodic) — writes draft JSON for crash recovery
 
 ### Comment Input
 
-When the user triggers `<leader>mc`:
+When the user presses `c`:
 
-- **On a line with no thread:** opens a floating window to create a new comment. A new thread `id` is assigned.
-- **On a line with an existing thread:** opens the expand view first (showing the thread), with the cursor in a reply input. The reply is appended to that thread.
+- **On a line with no thread:** opens an inline text input below the current line. A new thread `id` is assigned.
+- **On a line with an existing thread:** expands the thread first, opens a reply input at the bottom.
 
-Multi-line messages are supported — `<leader><Enter>` submits, `Escape` cancels. (Avoids `<C-Enter>` which is unreliable across terminal emulators.) The message immediately appears as virtual text on the anchored line (first line shown as plain text, truncated).
+`Enter` submits single-line comments. For multi-line, `Enter` adds a newline, `Ctrl+D` submits. `Escape` cancels.
 
 ### Comment Rendering
 
-Messages are stored as markdown in the JSON. Neovim cannot render markdown in virtual text (extmarks are plain text only), so:
-
-- **Inline hint** (eol virtual text) — plain text, first line only, truncated
-- **Expand view** (`<leader>me`) — opens a floating window with full markdown rendered via `vim.lsp.util.stylize_markdown()` (built-in neovim LSP utility)
-- **Web UI (v2)** — markdown rendered natively everywhere
+Messages are stored as markdown in the JSON. The TUI renders markdown as plain text with basic formatting (bold, italic, code blocks) using ANSI escape codes. Full markdown rendering is available in the thread expand view.
 
 ## Review Lifecycle
 
@@ -317,7 +305,7 @@ Messages are stored as markdown in the JSON. Neovim cannot render markdown in vi
 1. Claude Code generates spec → spec.md, commits it
 2. Claude Code runs: spectral spec.md
 3. CLI checks for draft → resumes or starts fresh
-4. Neovim opens (first round: single buffer; subsequent rounds: diff mode showing AI changes)
+4. TUI opens (first round: plain view; subsequent rounds: diff-highlighted view showing AI changes)
 5. Human reads, adds comments, resolves addressed threads
 6. On :w → plugin writes .review.draft.json (incremental save)
 7. On :q → CLI merges draft into .review.json, exits
@@ -349,6 +337,7 @@ A `/review-spectral` skill wraps the `spectral` CLI. The skill:
 
 ## V2 Scope (not built in v1)
 
+- **Neovim plugin** — Lua plugin using extmarks for comment overlays, floating windows for thread expansion, built-in diff mode for split-view review. Power-user adapter for those already in neovim. Inspired by [reviewthem.nvim](https://github.com/KEY60228/reviewthem.nvim).
 - **Web UI** — Express server + React frontend, difit-inspired. Markdown rendered with line numbers, click/drag to comment, submit button finalizes.
 - **Touch/region gestures** — circle-to-select on iPad, translated to region anchors by the UI.
 - **History navigation** — view previous review states via git history for context.
