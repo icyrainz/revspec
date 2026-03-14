@@ -235,7 +235,7 @@ Pressing `e` on a line with a thread expands it inline:
 | `r` | Resolve thread on current line |
 | `R` | Resolve all `pending` threads (batch resolve) |
 | `a` | Approve spec — all threads must be resolved/outdated first |
-| `d` | Delete own draft comment on current line |
+| `d` | Delete most recent draft message by human on current line's thread |
 | `l` | List all open/pending threads (jump to selected) |
 | `n` / `N` | Jump to next / previous open/pending thread |
 | `:w` | Save draft (without submitting) |
