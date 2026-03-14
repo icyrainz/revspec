@@ -10,7 +10,7 @@ import { writeDraftFile } from "../protocol/write";
 import { mergeDraftIntoReview } from "../protocol/merge";
 import type { Thread } from "../protocol/types";
 import { ReviewState } from "../state/review-state";
-import { buildPagerContent, createPager, type PagerComponents } from "./pager";
+import { buildStyledPagerContent, createPager, type PagerComponents } from "./pager";
 import {
   buildTopBarText,
   buildBottomBarText,
@@ -81,8 +81,8 @@ export async function runTui(
 
   // 6. Initial render
   function refreshPager(): void {
-    const content = buildPagerContent(state, searchQuery);
-    pager.textNode.content = content;
+    const styledContent = buildStyledPagerContent(state, searchQuery);
+    pager.textNode.content = styledContent;
     topBar.bar.content = buildTopBarText(specFile, state);
     bottomBar.bar.content = buildBottomBarText(commandBuffer);
     renderer.requestRender();
@@ -377,6 +377,15 @@ export async function runTui(
       if (key.ctrl && key.name === "c") {
         renderer.destroy();
         resolve();
+        return;
+      }
+
+      // Escape clears search highlights
+      if (key.name === "escape") {
+        if (searchQuery) {
+          searchQuery = null;
+          refreshPager();
+        }
         return;
       }
 

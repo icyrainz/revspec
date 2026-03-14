@@ -3,11 +3,20 @@ import type { Thread } from "../protocol/types";
 import {
   ScrollBoxRenderable,
   TextRenderable,
+  StyledText,
   type CliRenderer,
 } from "@opentui/core";
 import { theme, STATUS_ICONS } from "./theme";
 
 const MAX_HINT_LENGTH = 40;
+
+interface Chunk {
+  text: string;
+  fg?: string;
+  bg?: string;
+  bold?: boolean;
+  dim?: boolean;
+}
 
 function padLineNum(n: number): string {
   const s = String(n);
@@ -24,16 +33,112 @@ function threadHint(thread: Thread): string {
 }
 
 /**
- * Build the pager content string from ReviewState.
- * Plain text — no ANSI codes (OpenTUI handles colors via its own system).
- * Each line: cursor marker + lineNum (4-char padded) + "  " + line content + optional status + hint
- *
- * If searchQuery is provided, occurrences of the query in spec line content
- * are highlighted with [brackets].
+ * Split text into styled chunks with search matches highlighted (inverted colors).
+ */
+function highlightSearch(text: string, query: string, baseFg: string, baseBold?: boolean): Chunk[] {
+  if (!query) return [{ text, fg: baseFg, bold: baseBold }];
+
+  const lowerText = text.toLowerCase();
+  const lowerQuery = query.toLowerCase();
+  const chunks: Chunk[] = [];
+  let lastIndex = 0;
+
+  while (lastIndex < text.length) {
+    const idx = lowerText.indexOf(lowerQuery, lastIndex);
+    if (idx === -1) break;
+
+    if (idx > lastIndex) {
+      chunks.push({ text: text.slice(lastIndex, idx), fg: baseFg, bold: baseBold });
+    }
+    chunks.push({
+      text: text.slice(idx, idx + query.length),
+      fg: theme.base,
+      bg: theme.yellow,
+      bold: true,
+    });
+    lastIndex = idx + query.length;
+  }
+
+  if (lastIndex < text.length) {
+    chunks.push({ text: text.slice(lastIndex), fg: baseFg, bold: baseBold });
+  }
+
+  if (chunks.length === 0) {
+    chunks.push({ text, fg: baseFg, bold: baseBold });
+  }
+
+  return chunks;
+}
+
+/**
+ * Determine the color/style for a markdown line.
+ */
+function getMarkdownStyle(line: string, inCodeBlock: boolean): { fg: string; bold?: boolean } {
+  if (line.trimStart().startsWith("```")) {
+    return { fg: theme.overlay };
+  }
+  if (inCodeBlock) {
+    return { fg: theme.green };
+  }
+  if (line.match(/^#{1,6}\s/)) {
+    return { fg: theme.blue, bold: true };
+  }
+  if (line.match(/^\s*[-*]\s/)) {
+    return { fg: theme.yellow };
+  }
+  return { fg: theme.text };
+}
+
+/**
+ * Build the pager content as a StyledText with colored chunks.
+ * Supports: markdown formatting, search highlighting (inverted), thread indicators.
+ */
+export function buildStyledPagerContent(state: ReviewState, searchQuery?: string | null): StyledText {
+  const allChunks: Chunk[] = [];
+  let inCodeBlock = false;
+
+  for (let i = 0; i < state.specLines.length; i++) {
+    const lineNum = i + 1;
+    const thread = state.threadAtLine(lineNum);
+    const isCursor = lineNum === state.cursorLine;
+
+    if (i > 0) allChunks.push({ text: "\n" });
+
+    // Cursor marker
+    allChunks.push({ text: isCursor ? ">" : " ", fg: isCursor ? theme.yellow : theme.text });
+
+    // Line number
+    allChunks.push({ text: padLineNum(lineNum) + "  ", fg: theme.overlay });
+
+    // Code fence toggle
+    const rawLine = state.specLines[i];
+    const isFence = rawLine.trimStart().startsWith("```");
+    if (isFence) inCodeBlock = !inCodeBlock;
+
+    // Line content: markdown style + search highlighting
+    const style = getMarkdownStyle(rawLine, inCodeBlock && !isFence);
+    const contentChunks = searchQuery
+      ? highlightSearch(rawLine, searchQuery, style.fg, style.bold)
+      : [{ text: rawLine, fg: style.fg, bold: style.bold }];
+    allChunks.push(...contentChunks);
+
+    // Thread indicator
+    if (thread) {
+      const icon = STATUS_ICONS[thread.status];
+      const hint = threadHint(thread);
+      allChunks.push({ text: `  ${icon} `, fg: theme.overlay });
+      allChunks.push({ text: hint, fg: theme.overlay, dim: true });
+    }
+  }
+
+  return new StyledText(allChunks);
+}
+
+/**
+ * Plain text version for testing (no StyledText dependency).
  */
 export function buildPagerContent(state: ReviewState, searchQuery?: string | null): string {
   const lines: string[] = [];
-  const q = searchQuery ? searchQuery.toLowerCase() : null;
 
   for (let i = 0; i < state.specLines.length; i++) {
     const lineNum = i + 1;
@@ -43,9 +148,9 @@ export function buildPagerContent(state: ReviewState, searchQuery?: string | nul
     const prefix = isCursor ? ">" : " ";
     let specText = state.specLines[i];
 
-    // Highlight search matches in spec text
-    if (q) {
-      specText = highlightMatches(specText, q);
+    if (searchQuery) {
+      const regex = new RegExp(searchQuery.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
+      specText = specText.replace(regex, (match) => `>>${match}<<`);
     }
 
     let line = `${prefix}${padLineNum(lineNum)}  ${specText}`;
@@ -60,27 +165,6 @@ export function buildPagerContent(state: ReviewState, searchQuery?: string | nul
   }
 
   return lines.join("\n");
-}
-
-/**
- * Highlight all occurrences of a query in text by wrapping with >> <<.
- * Case-insensitive matching; original casing is preserved.
- */
-function highlightMatches(text: string, queryLower: string): string {
-  const lower = text.toLowerCase();
-  let result = "";
-  let pos = 0;
-  while (pos < text.length) {
-    const idx = lower.indexOf(queryLower, pos);
-    if (idx === -1) {
-      result += text.slice(pos);
-      break;
-    }
-    result += text.slice(pos, idx);
-    result += `>>${text.slice(idx, idx + queryLower.length)}<<`;
-    pos = idx + queryLower.length;
-  }
-  return result;
 }
 
 export interface PagerComponents {
