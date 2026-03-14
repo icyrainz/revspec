@@ -261,7 +261,7 @@ The expand view (`<leader>me`) shows the full thread in a floating window:
 | `<leader>me` | Normal | Expand thread under cursor (full markdown, actions) |
 | `<leader>mr` | Normal | Resolve thread under cursor |
 | `<leader>mR` | Normal | Resolve all `discussed` threads (batch resolve) |
-| `<leader>ma` | Normal | Approve spec — all threads must be resolved/addressed first |
+| `<leader>ma` | Normal | Approve spec — all threads must be resolved/addressed/outdated first |
 | `<leader>md` | Normal | Delete own draft message under cursor (rewrites draft file; only works on unsubmitted messages, not on the review file) |
 | `<leader>ml` | Normal | List all open threads (quickfix) |
 | `]c` | Normal | Jump to next open thread |
@@ -326,7 +326,7 @@ Messages are stored as markdown in the JSON. Neovim cannot render markdown in vi
 9. Claude Code runs spectral again → human sees diff of AI changes + AI responses
 10. Human resolves threads, or continues discussion
 11. When all threads clear → human presses <leader>ma (approve)
-12. CLI exits with "APPROVED: path/to/spec.md" on stdout → Claude Code proceeds to implementation plan
+12. CLI exits with "APPROVED: path/to/review.json" on stdout → Claude Code proceeds to implementation plan
 ```
 
 ### Crash Recovery
@@ -339,9 +339,10 @@ A `/review-spectral` skill wraps the `spectral` CLI. The skill:
 
 1. Runs `spectral <spec-file>` (blocks while human reviews)
 2. Reads stdout — if `APPROVED:`, proceeds to implementation plan
-3. If a review file path is returned, reads the JSON, processes each open thread:
+3. If a review file path is returned, reads the JSON, processes each thread:
    - `open` threads: update spec or respond with explanation
    - `discussed` threads with new human replies: re-evaluate
+   - `discussed` threads with no human action: prompt the user about them before next spectral invocation
 4. Commits spec changes, rewrites `.review.json` with updated anchors/statuses/responses
 5. Loops back to step 1 (runs `spectral` again)
 6. On `APPROVED:`, invokes the writing-plans skill
