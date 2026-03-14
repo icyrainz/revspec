@@ -11,11 +11,15 @@ When an AI generates a spec, the human review step breaks the agentic loop. You 
 Requires [Bun](https://bun.sh) (install: `curl -fsSL https://bun.sh/install | bash`).
 
 ```bash
+bun install -g revspec
+```
+
+Or from source:
+
+```bash
 git clone https://github.com/icyrainz/revspec.git
 cd revspec && bun install && bun link
 ```
-
-This adds `revspec` to your PATH.
 
 ## Usage
 
