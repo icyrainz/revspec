@@ -84,13 +84,56 @@ docs/specs/feature-design.review.live.jsonl    # live chat log (append-only audi
 - Append-only — neither side edits or truncates the file
 - `comment` creates a new thread; `reply` adds to an existing one
 - Only humans create threads (AI only replies)
-- `ts` is `Date.now()` — each side tracks its last-read timestamp to find new events
 - Thread IDs are auto-incremented by the TUI (`t1`, `t2`, ...)
 - `approve` signals the session is complete
+- Write atomicity: each event is a single `appendFileSync` call with a trailing `\n`. On read, discard any final line that does not parse as valid JSON (partial write from crash/kill).
+
+### Change Detection
+
+Both sides track their read position by **byte offset** (not timestamp). Each reader remembers the last byte offset it read to. On file change notification, it reads from that offset forward, parses new lines, and updates the offset.
+
+- The `watch` CLI stores its byte offset in a state file: `spec.review.live.offset` (deleted on session end)
+- The TUI tracks its offset in memory (lives as long as the process)
+- Byte offset is more reliable than timestamp — no risk of two events sharing the same millisecond
+
+### Concurrency Model
+
+This is a deliberate departure from the original spec's single-writer contract. Both the TUI and the AI tool append to the same JSONL file concurrently. This is safe because:
+
+1. Each write is a single `appendFileSync` call (atomic for small writes on local filesystems)
+2. Each event is a complete JSON line — partial writes are detectable and discarded
+3. Neither side edits or truncates — append-only eliminates read-modify-write races
+4. The JSONL is a log, not a state file — order of concurrent appends does not affect correctness
+
+### Thread Status Mapping
+
+During a live session, thread status is derived from the JSONL event stream:
+
+| Last event on thread | Derived status |
+|---------------------|----------------|
+| `comment` (human) | `open` (AI's turn) |
+| `reply` (human) | `open` (AI's turn) |
+| `reply` (ai) | `pending` (human's turn) |
+| `resolve` | `resolved` |
+| `unresolve` | `open` |
+
+The `outdated` status is not used during live sessions (the spec is frozen, no anchors move). It is set by the AI between rounds when rewriting the spec and updating anchors.
+
+### AI Reply to Resolved Thread
+
+If the AI replies to a thread that was resolved after the comment was posted (race condition — human resolves while AI is composing), the reply is still appended to the JSONL. The thread status reverts to `pending` (the AI reply is the latest event). The TUI shows the new AI reply with an unread indicator. The human can re-resolve if the reply doesn't need further discussion.
 
 ### Merge to JSON
 
-On session end (approve or quit), revspec replays the JSONL events and merges the final thread state into `spec.review.json`. The JSONL file is kept as an audit log.
+On session end (approve or quit), revspec replays the **entire JSONL from byte 0** and merges the final thread state into `spec.review.json`. The JSONL file is kept as an audit log.
+
+The merge always replays from the start (not from an offset) to ensure it is idempotent and self-healing — even if an AI reply lands during the merge, the next merge will capture it.
+
+**Merge semantics:**
+- Existing threads in `spec.review.json` (from prior rounds) are preserved
+- JSONL threads are merged by ID: if a thread ID exists in both, messages from the JSONL are appended to the existing thread's messages (same logic as the current `mergeDraftIntoReview`)
+- Thread status is set to whatever the JSONL's final event derives (see Thread Status Mapping)
+- Thread IDs use the `t`-prefix format (`t1`, `t2`, ...) — this matches the existing codebase. The original spec's examples showing plain numeric IDs (`"1"`, `"2"`) are outdated.
 
 The merge produces the same structured `ReviewFile` format used today:
 
@@ -113,15 +156,24 @@ The merge produces the same structured `ReviewFile` format used today:
 }
 ```
 
-The `Message` type gains a `ts` field:
+The `Message` type gains an optional `ts` field (optional for backward compatibility with existing review files):
 
 ```typescript
 interface Message {
   author: "human" | "ai"
   text: string
-  ts: number  // Date.now()
+  ts?: number  // Date.now(), optional for backward compat with pre-live review files
 }
 ```
+
+### Draft File Replacement
+
+The live JSONL replaces the draft file (`spec.review.draft.json`) entirely. In the original design, the draft was an in-progress snapshot that merged on exit. In live mode, the JSONL is the in-progress log and the merge-on-exit step replays it into the review JSON. There is no need for both.
+
+- Old flow: TUI → draft.json → merge into review.json on exit
+- Live flow: TUI → live.jsonl ← AI also writes here → merge into review.json on exit
+
+If revspec is launched without an AI watcher (standalone mode), the JSONL still works — it just never receives AI replies. The merge step is identical.
 
 ## CLI Subcommands
 
@@ -129,37 +181,113 @@ Two new subcommands for AI tool integration. Revspec owns the protocol — the A
 
 ### `revspec watch <file.md>`
 
-Blocks until new human events appear in the JSONL. Returns structured output with the new comments and instructions for how to respond.
+Blocks until new human events appear in the JSONL. Returns structured output with the new comments, spec context, thread history, and instructions for how to respond.
 
-```bash
+**Full output example — new comments with context:**
+
+```
 $ revspec watch spec.md
 
 # Blocks... human adds comments in TUI...
 
-New comments:
-- [t1] line 14: "this section is unclear"
-- [t2] line 38: "missing error case"
+--- New threads ---
+
+[t1] line 14 (new):
+  Context:
+    12: The system uses polling to check for updates
+    13: every 30 seconds. If a change is detected,
+   >14: it sends a notification via webhook.
+    15: The notification payload includes the full
+    16: resource state.
+  Comment: "this section is unclear — polling or webhook?"
+
+[t2] line 38 (new):
+  Context:
+    36: ### Error Handling
+    37: Errors are logged to stderr.
+   >38: No retry logic is implemented.
+    39:
+    40: ### Rate Limiting
+  Comment: "missing error case — what about network timeouts?"
 
 To reply: revspec reply spec.md <threadId> "<your response>"
 When done replying, run: revspec watch spec.md
 ```
 
-When the human approves:
+**Full output example — replies to existing threads:**
 
-```bash
+```
+$ revspec watch spec.md
+
+--- Replies ---
+
+[t1] line 14 (reply):
+  Thread history:
+    human: "this section is unclear — polling or webhook?"
+    ai: "Good catch. I'll clarify — it uses polling to detect changes, then sends a webhook notification."
+    human: "that still doesn't explain the 30-second interval — why not event-driven?"
+  Comment: "that still doesn't explain the 30-second interval — why not event-driven?"
+
+To reply: revspec reply spec.md <threadId> "<your response>"
+When done replying, run: revspec watch spec.md
+```
+
+**Full output example — resolves (informational, no reply needed):**
+
+```
+$ revspec watch spec.md
+
+--- Resolved ---
+
+[t2] line 38: resolved by human
+
+--- Replies ---
+
+[t1] line 14 (reply):
+  Thread history:
+    human: "polling or webhook?"
+    ai: "It's event-driven now. Changed the spec."
+    human: "perfect, but update the diagram too"
+  Comment: "perfect, but update the diagram too"
+
+To reply: revspec reply spec.md <threadId> "<your response>"
+When done replying, run: revspec watch spec.md
+```
+
+**Output on approval:**
+
+```
 $ revspec watch spec.md
 
 Review approved.
 Review file: docs/specs/feature-design.review.json
 ```
 
+**Output format notes:**
+- Context shows 2 lines above and below the anchored line (marked with `>`)
+- Thread history shows the full conversation so the AI has context for its reply
+- Resolved threads are listed separately — informational only, no reply expected
+- Unresolve events are not surfaced to the AI (the next human reply will trigger a new watch return)
+- The output is human-readable text, not JSON — AI tools parse natural language well, and this format is easier to debug
+
 **Behavior:**
-- Reads JSONL from last-known byte offset (or from start on first call)
+- Reads JSONL from last-known byte offset stored in `spec.review.live.offset` (created on first call, deleted on session end)
 - Filters for new `author: "human"` events (comments, replies, resolves)
 - Blocks (via `fs.watch()` on the JSONL file) until new human events arrive
-- Outputs human events in a structured, AI-readable format
+- If JSONL file does not exist yet, blocks until it appears (human has not launched revspec yet)
+- Outputs human events in a structured, AI-readable format (human-readable text, not JSON — AI tools parse natural language well)
 - Includes self-describing instructions so the AI knows what to do next
+- Includes spec context around each comment (surrounding lines) and full thread history so the AI can reply without reading extra files
 - Exits after outputting (AI re-spawns for the next batch)
+- Falls back to polling (check file mtime every 500ms) if `fs.watch()` does not fire within 2 seconds — guards against known `fs.watch` reliability issues on macOS/Linux
+
+**Exit codes:**
+
+| Code | Meaning |
+|------|---------|
+| 0 | New comments returned, or review approved |
+| 1 | Spec file not found or invalid |
+| 2 | JSONL file corrupted (unrecoverable) |
 
 ### `revspec reply <file.md> <threadId> "<text>"`
 
@@ -171,9 +299,17 @@ $ revspec reply spec.md t1 "I can restructure this section around X. The key cha
 
 **Behavior:**
 - Validates the thread ID exists in the JSONL
-- Appends a `{"type":"reply","threadId":"...","author":"ai","text":"...","ts":...}` line
-- Exits immediately
+- Rejects empty text (exit 1)
+- Appends a `{"type":"reply","threadId":"...","author":"ai","text":"...","ts":...}` line. Newlines in text are preserved via JSON string escaping (`\n`).
+- Replying to a resolved thread is allowed — the thread reverts to `pending` (see AI Reply to Resolved Thread). No warning is printed.
+- Exits immediately (exit 0 on success, exit 1 if thread ID not found or empty text)
 - The TUI detects the file change and renders the AI reply
+- Only one `revspec watch` process is supported at a time. A lock file (`spec.review.live.lock`) is created on first `watch` call and deleted on session end. If a second `watch` is attempted, it exits with code 3 and prints `"Another watch process is already running"`.
+
+**Malformed event handling (TUI side):**
+- Events that fail JSON parsing: discarded (partial write)
+- Events with unknown `threadId`: ignored (logged to stderr if `REVSPEC_DEBUG=1`)
+- Events with missing required fields: ignored
 
 ### Why This Design
 
@@ -184,6 +320,30 @@ The AI tool's job is trivial:
 4. Run `revspec watch` again (loop)
 
 No knowledge of JSONL, timestamps, file formats, or revspec internals needed. Any AI tool that can run shell commands works — Claude Code, opencode, Cursor, etc.
+
+## Mode Detection and Startup
+
+There is no separate "live mode" flag. The TUI always writes to the JSONL and always watches it for AI replies. If no AI is watching, the JSONL just accumulates human events and no AI replies arrive — this is functionally equivalent to the old batch mode.
+
+### Startup sequence
+
+1. TUI creates `spec.review.live.jsonl` if it does not exist
+2. If `spec.review.json` exists (prior round), load existing threads into `ReviewState`
+3. If `spec.review.live.jsonl` already has content (crashed previous session or continuation), replay events from byte 0 to reconstruct thread state, merging with any threads loaded from the JSON. This handles crash recovery — the JSONL is the in-progress log.
+4. Start `fs.watch()` on the JSONL file for incoming AI replies
+5. The draft file (`spec.review.draft.json`) is not read or written in live mode. If one exists from a pre-live version of revspec, it is ignored (the user can delete it manually).
+
+### Session boundaries
+
+- A **session** starts when the TUI creates or opens the JSONL file
+- A **session** ends when the TUI merges the JSONL into the JSON (on `:q` or `a`)
+- Between sessions (AI is rewriting the spec), the JSONL persists as an audit log
+- When the AI launches a new round, a `{"type":"round","round":2,"ts":...}` marker is appended to the JSONL before the TUI starts. This separates rounds in the audit log. Line anchors in events from prior rounds refer to the previous version of the spec — the JSON (not the JSONL) is the source of truth for current thread state.
+- On `:q!` (quit without merging), the JSONL persists. If the human relaunches revspec, the JSONL is replayed from byte 0 to restore thread state (crash recovery).
+
+### Spec file mutation guard
+
+The spec file is frozen during a live session. Revspec records the spec file's mtime on startup. If the mtime changes during the session (someone edited the file), the TUI shows a warning in the status bar: `"Spec file changed externally — line anchors may be stale"`. It does not exit or block — the human decides what to do.
 
 ## TUI Changes
 
@@ -218,15 +378,25 @@ The count decreases as the human views threads.
 
 ### Navigation
 
-`n`/`N` (next/prev thread) prioritize threads with unread AI replies. After all unread threads are visited, `n`/`N` cycle through remaining active threads as today.
+New keybinding `]r`/`[r` to jump to next/prev thread with unread AI replies. Existing `]t`/`[t` (next/prev active thread) and `n`/`N` (search result cycling) are unchanged.
+
+### Quit Semantics in Live Mode
+
+In the original batch mode, `:q` submits comments (they weren't live until then). In live mode, comments are already live via the JSONL — there is nothing to "submit."
+
+| Command | Live mode behavior |
+|---------|-------------------|
+| `:q` | Merge JSONL → JSON (full replay from byte 0 — catches any AI replies that landed during merge), exit. Warn if unresolved threads exist. |
+| `:wq` | Same as `:q` (no separate "save" step — JSONL is already persisted) |
+| `:q!` | Exit without merging JSONL → JSON. JSONL is preserved as audit log. |
+| `a` (approve) | Append `approve` event to JSONL, merge JSONL → JSON, exit. Requires all threads resolved/outdated. |
 
 ### No Changes To
 
 - Comment input (`c` flow — same)
 - Resolve/unresolve (`r` flow — same)
-- Approve flow (`a` — same, all threads must be resolved/outdated)
-- Quit (`:wq` merges JSONL → JSON on exit)
-- Search, help, theme
+- Search (`/`, `n`/`N` — same)
+- Help, theme
 
 ## Launch Strategy
 
@@ -286,9 +456,18 @@ Revspec is deliberately decoupled from any specific AI coding tool:
 
 For Claude Code, the orchestration is a `/review` skill. Other tools would implement their own equivalent. The revspec side is identical regardless.
 
+## Backward Compatibility
+
+### Standalone Mode
+
+If revspec is launched without an AI watcher (`revspec spec.md` with no `revspec watch` running), the JSONL is still written on every human action. It just never receives AI replies. The merge step on exit works identically. This means the old batch workflow still works — the human comments, exits, and the AI processes the review JSON as before.
+
+### Existing Review Files
+
+The `ts` field on `Message` is optional. Existing `spec.review.json` files without timestamps continue to work. New messages written by the live system include timestamps; old messages do not. No migration needed.
+
 ## Open Questions
 
-- **Bash timeout on `revspec watch`:** Claude Code's background Bash has a max 10-minute timeout. If the human takes longer, the watcher times out. The skill should re-spawn on timeout.
-- **Concurrent replies:** If the human adds 3 comments quickly, should the AI reply to all 3 at once or one at a time? Likely all at once (the `watch` command batches all new events).
-- **Thread context for AI:** The `watch` output should include enough context (spec lines around the thread, full thread history) for the AI to generate a good reply without reading extra files.
-- **JSONL rotation across rounds:** Should each review round get a fresh JSONL file, or does one file accumulate across all rounds? If accumulated, the audit log shows the full history. If rotated, files stay smaller.
+- **Bash timeout on `revspec watch`:** Claude Code's background Bash has a max 10-minute timeout. If the human takes longer, the watcher times out. The orchestration skill should re-spawn on timeout.
+- **Concurrent replies:** If the human adds 3 comments quickly, the `watch` command batches all new events and returns them together. The AI can reply to all at once.
+- **JSONL across rounds:** Each review round appends to the same JSONL file. The audit log shows the full history across all rounds. A `{"type":"round","round":2,"ts":...}` marker event could separate rounds for readability, but is not required.
