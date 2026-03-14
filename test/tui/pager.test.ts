@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { buildPagerContent } from "../../src/tui/pager";
+import { buildPagerContent, buildStyledPagerContent } from "../../src/tui/pager";
 import { ReviewState } from "../../src/state/review-state";
 import type { Thread } from "../../src/protocol/types";
 
@@ -179,5 +179,36 @@ describe("buildPagerContent", () => {
 
     expect(lines[1]).toContain("Some text");
     expect(lines[1]).not.toContain(">>");
+  });
+});
+
+describe("buildStyledPagerContent", () => {
+  it("returns a StyledText with chunks (does not throw)", () => {
+    const state = new ReviewState(SPEC, [
+      makeThread("t1", 2, "open"),
+    ]);
+    const styled = buildStyledPagerContent(state);
+    expect(styled).toBeDefined();
+    expect(styled.chunks.length).toBeGreaterThan(0);
+  });
+
+  it("chunks only contain text/fg/bg fields (no bold/dim)", () => {
+    const state = new ReviewState(
+      ["# Header", "normal", "- list item", "```", "code", "```"],
+      [makeThread("t1", 2, "pending")]
+    );
+    const styled = buildStyledPagerContent(state, "normal");
+    for (const chunk of styled.chunks) {
+      expect(chunk).not.toHaveProperty("bold");
+      expect(chunk).not.toHaveProperty("dim");
+    }
+  });
+
+  it("search highlights produce bg-colored chunks", () => {
+    const state = new ReviewState(["hello world"], []);
+    const styled = buildStyledPagerContent(state, "world");
+    const highlighted = styled.chunks.find((c: any) => c.bg);
+    expect(highlighted).toBeDefined();
+    expect(highlighted!.text).toBe("world");
   });
 });
