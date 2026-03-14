@@ -5,6 +5,8 @@ import {
   BoxRenderable,
   TextRenderable,
   MarkdownRenderable,
+  SyntaxStyle,
+  parseColor,
   type CliRenderer,
 } from "@opentui/core";
 import { theme, STATUS_ICONS } from "./theme";
@@ -94,6 +96,30 @@ export interface PagerComponents {
 
 const GUTTER_WIDTH = 10;
 
+function createMarkdownStyle(): SyntaxStyle {
+  return SyntaxStyle.fromStyles({
+    default: { fg: parseColor(theme.text) },
+    "markup.heading": { fg: parseColor(theme.blue), bold: true },
+    "markup.heading.1": { fg: parseColor(theme.blue), bold: true },
+    "markup.heading.2": { fg: parseColor(theme.blue), bold: true },
+    "markup.heading.3": { fg: parseColor(theme.mauve), bold: true },
+    "markup.heading.4": { fg: parseColor(theme.mauve) },
+    "markup.heading.5": { fg: parseColor(theme.mauve) },
+    "markup.heading.6": { fg: parseColor(theme.mauve) },
+    "markup.bold": { fg: parseColor(theme.text), bold: true },
+    "markup.strong": { fg: parseColor(theme.text), bold: true },
+    "markup.italic": { fg: parseColor(theme.text), italic: true },
+    "markup.link": { fg: parseColor(theme.blue) },
+    "markup.link.url": { fg: parseColor(theme.blue) },
+    "markup.list": { fg: parseColor(theme.yellow) },
+    "markup.raw": { fg: parseColor(theme.green) },
+    "markup.raw.inline": { fg: parseColor(theme.green) },
+    "string": { fg: parseColor(theme.green) },
+    "comment": { fg: parseColor(theme.overlay) },
+    "punctuation.special": { fg: parseColor(theme.overlay) },
+  });
+}
+
 /**
  * Create the pager with a gutter (line numbers + indicators) and markdown content.
  */
@@ -107,11 +133,13 @@ export function createPager(renderer: CliRenderer): PagerComponents {
     bg: theme.base,
   });
 
-  // Markdown content
+  // Markdown content with syntax styling
   const markdownNode = new MarkdownRenderable(renderer, {
     content: "",
     width: "100%",
     flexGrow: 1,
+    syntaxStyle: createMarkdownStyle(),
+    conceal: true,
   });
 
   // Row container for side-by-side layout
