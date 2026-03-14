@@ -411,21 +411,31 @@ export async function runTui(
           }
           break;
         }
-        case "space": {
-          const newLine = Math.min(
-            state.cursorLine + pageSize(),
-            state.lineCount
-          );
-          state.cursorLine = newLine;
-          ensureCursorVisible();
-          refreshPager();
+        case "d": {
+          // Ctrl+D — half page down
+          if (key.ctrl) {
+            const half = Math.max(1, Math.floor(pageSize() / 2));
+            state.cursorLine = Math.min(state.cursorLine + half, state.lineCount);
+            ensureCursorVisible();
+            refreshPager();
+          } else {
+            // d without ctrl — delete draft comment
+            const thread = state.threadAtLine(state.cursorLine);
+            if (thread) {
+              state.deleteLastDraftMessage(thread.id);
+              refreshPager();
+            }
+          }
           break;
         }
-        case "b": {
-          const newLine = Math.max(state.cursorLine - pageSize(), 1);
-          state.cursorLine = newLine;
-          ensureCursorVisible();
-          refreshPager();
+        case "u": {
+          // Ctrl+U — half page up
+          if (key.ctrl) {
+            const half = Math.max(1, Math.floor(pageSize() / 2));
+            state.cursorLine = Math.max(state.cursorLine - half, 1);
+            ensureCursorVisible();
+            refreshPager();
+          }
           break;
         }
         case "n": {
@@ -488,15 +498,6 @@ export async function runTui(
           } else {
             // Shift+R = resolve all pending
             state.resolveAllPending();
-            refreshPager();
-          }
-          break;
-        }
-        case "d": {
-          // Delete last human draft message at cursor
-          const thread = state.threadAtLine(state.cursorLine);
-          if (thread) {
-            state.deleteLastDraftMessage(thread.id);
             refreshPager();
           }
           break;

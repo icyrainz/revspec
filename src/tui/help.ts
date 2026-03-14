@@ -26,7 +26,7 @@ export function createHelp(opts: {
     "",
     "  Navigation",
     "  j/k       Scroll up/down",
-    "  Space/b   Page down/up",
+    "  Ctrl+d/u  Half page down/up",
     "  /         Search",
     "  n/N       Next/prev search match (or thread if no active search)",
     "  ]t/[t     Next/prev thread (always)",
