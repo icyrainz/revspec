@@ -1,13 +1,13 @@
 {
-  "name": "spectral",
+  "name": "revspec",
   "version": "0.1.0",
   "type": "module",
   "private": true,
   "bin": {
-    "spectral": "./bin/spectral.ts"
+    "revspec": "./bin/revspec.ts"
   },
   "scripts": {
-    "start": "bun run bin/spectral.ts",
+    "start": "bun run bin/revspec.ts",
     "test": "bun test"
   },
   "devDependencies": {

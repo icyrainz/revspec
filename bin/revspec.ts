@@ -9,12 +9,12 @@ import { runTui } from "../src/tui/app";
 const args = process.argv.slice(2);
 
 if (args.length === 0 || args.includes("--help") || args.includes("-h")) {
-  console.log("Usage: spectral <file.md> [--tui|--nvim|--web]");
+  console.log("Usage: revspec <file.md> [--tui|--nvim|--web]");
   process.exit(0);
 }
 
 if (args.includes("--version") || args.includes("-v")) {
-  console.log("spectral 0.1.0");
+  console.log("revspec 0.1.0");
   process.exit(0);
 }
 
@@ -64,8 +64,8 @@ if (existsSync(draftPath)) {
   }
 }
 
-// 4. Launch TUI (skip if SPECTRAL_SKIP_TUI=1)
-if (process.env.SPECTRAL_SKIP_TUI !== "1") {
+// 4. Launch TUI (skip if REVSPEC_SKIP_TUI=1)
+if (process.env.REVSPEC_SKIP_TUI !== "1") {
   await runTui(specPath, reviewPath, draftPath);
 }
 

@@ -1,4 +1,4 @@
-# Spectral v1 Implementation Plan
+# Revspec v1 Implementation Plan
 
 > **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development (if subagents available) or superpowers:executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -20,7 +20,7 @@ spectral/
 ├── tsconfig.json
 ├── bunfig.toml
 ├── bin/
-│   └── spectral.ts              # CLI entry point — arg parsing, file lifecycle, stdout output
+│   └── revspec.ts              # CLI entry point — arg parsing, file lifecycle, stdout output
 ├── src/
 │   ├── protocol/
 │   │   ├── types.ts             # ReviewFile, Thread, Message, Status types
@@ -99,7 +99,7 @@ git commit -m "test: verify OpenTUI API availability"
 - Create: `package.json`
 - Create: `tsconfig.json`
 - Create: `bunfig.toml`
-- Create: `bin/spectral.ts`
+- Create: `bin/revspec.ts`
 
 - [ ] **Step 1: Initialize Bun project**
 
@@ -120,14 +120,14 @@ Set the `bin` field and project metadata:
 
 ```json
 {
-  "name": "spectral",
+  "name": "revspec",
   "version": "0.1.0",
   "description": "Review tool for AI-generated spec documents",
   "bin": {
-    "spectral": "./bin/spectral.ts"
+    "revspec": "./bin/revspec.ts"
   },
   "scripts": {
-    "start": "bun run bin/spectral.ts",
+    "start": "bun run bin/revspec.ts",
     "test": "bun test"
   },
   "dependencies": {
@@ -158,13 +158,13 @@ Set the `bin` field and project metadata:
 - [ ] **Step 5: Create minimal CLI entry point**
 
 ```typescript
-// bin/spectral.ts
+// bin/revspec.ts
 #!/usr/bin/env bun
 
 const args = process.argv.slice(2);
 
 if (args.length === 0 || args.includes("--help") || args.includes("-h")) {
-  console.log("Usage: spectral <file.md> [--tui|--nvim|--web]");
+  console.log("Usage: revspec <file.md> [--tui|--nvim|--web]");
   process.exit(0);
 }
 
@@ -174,18 +174,18 @@ if (!specFile) {
   process.exit(1);
 }
 
-console.log(`spectral: would review ${specFile}`);
+console.log(`revspec: would review ${specFile}`);
 ```
 
 - [ ] **Step 6: Verify it runs**
 
-Run: `bun run bin/spectral.ts test.md`
-Expected: `spectral: would review test.md`
+Run: `bun run bin/revspec.ts test.md`
+Expected: `revspec: would review test.md`
 
 - [ ] **Step 7: Commit**
 
 ```bash
-git add package.json tsconfig.json bunfig.toml bin/spectral.ts bun.lock
+git add package.json tsconfig.json bunfig.toml bin/revspec.ts bun.lock
 git commit -m "feat: scaffold Bun project with OpenTUI dependency"
 ```
 
@@ -380,7 +380,7 @@ describe("readReviewFile", () => {
   let dir: string;
 
   beforeEach(() => {
-    dir = mkdtempSync(join(tmpdir(), "spectral-test-"));
+    dir = mkdtempSync(join(tmpdir(), "revspec-test-"));
   });
 
   afterEach(() => {
@@ -416,7 +416,7 @@ describe("readDraftFile", () => {
   let dir: string;
 
   beforeEach(() => {
-    dir = mkdtempSync(join(tmpdir(), "spectral-test-"));
+    dir = mkdtempSync(join(tmpdir(), "revspec-test-"));
   });
 
   afterEach(() => {
@@ -501,7 +501,7 @@ describe("writeReviewFile", () => {
   let dir: string;
 
   beforeEach(() => {
-    dir = mkdtempSync(join(tmpdir(), "spectral-test-"));
+    dir = mkdtempSync(join(tmpdir(), "revspec-test-"));
   });
 
   afterEach(() => {
@@ -527,7 +527,7 @@ describe("writeDraftFile", () => {
   let dir: string;
 
   beforeEach(() => {
-    dir = mkdtempSync(join(tmpdir(), "spectral-test-"));
+    dir = mkdtempSync(join(tmpdir(), "revspec-test-"));
   });
 
   afterEach(() => {
@@ -750,7 +750,7 @@ git commit -m "feat: add draft-to-review merge logic"
 ### Task 5: CLI Argument Parsing + File Lifecycle
 
 **Files:**
-- Modify: `bin/spectral.ts`
+- Modify: `bin/revspec.ts`
 - Create: `test/cli.test.ts`
 
 - [ ] **Step 1: Write failing integration tests**
@@ -766,7 +766,7 @@ describe("CLI", () => {
   let dir: string;
 
   beforeEach(() => {
-    dir = mkdtempSync(join(tmpdir(), "spectral-cli-"));
+    dir = mkdtempSync(join(tmpdir(), "revspec-cli-"));
   });
 
   afterEach(() => {
@@ -774,10 +774,10 @@ describe("CLI", () => {
   });
 
   it("exits 1 for missing spec file", async () => {
-    const proc = Bun.spawn(["bun", "run", "bin/spectral.ts", join(dir, "missing.md")], {
+    const proc = Bun.spawn(["bun", "run", "bin/revspec.ts", join(dir, "missing.md")], {
       stdout: "pipe",
       stderr: "pipe",
-      env: { ...process.env, SPECTRAL_SKIP_TUI: "1" },
+      env: { ...process.env, REVSPEC_SKIP_TUI: "1" },
     });
     const exitCode = await proc.exited;
     expect(exitCode).toBe(1);
@@ -786,10 +786,10 @@ describe("CLI", () => {
   it("exits 0 with no output when no review file exists", async () => {
     const specPath = join(dir, "spec.md");
     writeFileSync(specPath, "# Test Spec\n");
-    const proc = Bun.spawn(["bun", "run", "bin/spectral.ts", specPath], {
+    const proc = Bun.spawn(["bun", "run", "bin/revspec.ts", specPath], {
       stdout: "pipe",
       stderr: "pipe",
-      env: { ...process.env, SPECTRAL_SKIP_TUI: "1" },
+      env: { ...process.env, REVSPEC_SKIP_TUI: "1" },
     });
     const exitCode = await proc.exited;
     const stdout = await new Response(proc.stdout).text();
@@ -804,10 +804,10 @@ describe("CLI", () => {
     writeFileSync(specPath, "# Test Spec\n");
     writeFileSync(reviewPath, JSON.stringify({ file: specPath, threads: [] }));
     writeFileSync(draftPath, JSON.stringify({ approved: true }));
-    const proc = Bun.spawn(["bun", "run", "bin/spectral.ts", specPath], {
+    const proc = Bun.spawn(["bun", "run", "bin/revspec.ts", specPath], {
       stdout: "pipe",
       stderr: "pipe",
-      env: { ...process.env, SPECTRAL_SKIP_TUI: "1" },
+      env: { ...process.env, REVSPEC_SKIP_TUI: "1" },
     });
     const exitCode = await proc.exited;
     const stdout = await new Response(proc.stdout).text();
@@ -827,10 +827,10 @@ describe("CLI", () => {
         threads: [{ id: "1", line: 1, status: "open", messages: [{ author: "human", text: "hi" }] }],
       })
     );
-    const proc = Bun.spawn(["bun", "run", "bin/spectral.ts", specPath], {
+    const proc = Bun.spawn(["bun", "run", "bin/revspec.ts", specPath], {
       stdout: "pipe",
       stderr: "pipe",
-      env: { ...process.env, SPECTRAL_SKIP_TUI: "1" },
+      env: { ...process.env, REVSPEC_SKIP_TUI: "1" },
     });
     await proc.exited;
     expect(existsSync(draftPath)).toBe(false);
@@ -843,10 +843,10 @@ describe("CLI", () => {
     const draftPath = join(dir, "spec.review.draft.json");
     writeFileSync(specPath, "# Test Spec\n");
     writeFileSync(draftPath, "not valid json{{{");
-    const proc = Bun.spawn(["bun", "run", "bin/spectral.ts", specPath], {
+    const proc = Bun.spawn(["bun", "run", "bin/revspec.ts", specPath], {
       stdout: "pipe",
       stderr: "pipe",
-      env: { ...process.env, SPECTRAL_SKIP_TUI: "1" },
+      env: { ...process.env, REVSPEC_SKIP_TUI: "1" },
     });
     await proc.exited;
     const stderr = await new Response(proc.stderr).text();
@@ -857,10 +857,10 @@ describe("CLI", () => {
   it("prints nothing when human adds no comments (no prior review)", async () => {
     const specPath = join(dir, "spec.md");
     writeFileSync(specPath, "# Test Spec\n");
-    const proc = Bun.spawn(["bun", "run", "bin/spectral.ts", specPath], {
+    const proc = Bun.spawn(["bun", "run", "bin/revspec.ts", specPath], {
       stdout: "pipe",
       stderr: "pipe",
-      env: { ...process.env, SPECTRAL_SKIP_TUI: "1" },
+      env: { ...process.env, REVSPEC_SKIP_TUI: "1" },
     });
     const exitCode = await proc.exited;
     const stdout = await new Response(proc.stdout).text();
@@ -878,7 +878,7 @@ Expected: FAIL
 - [ ] **Step 3: Implement the full CLI**
 
 ```typescript
-// bin/spectral.ts
+// bin/revspec.ts
 #!/usr/bin/env bun
 import { existsSync, unlinkSync } from "fs";
 import { resolve, dirname, basename } from "path";
@@ -889,7 +889,7 @@ import { mergeDraftIntoReview } from "../src/protocol/merge";
 const args = process.argv.slice(2);
 
 if (args.length === 0 || args.includes("--help") || args.includes("-h")) {
-  console.log("Usage: spectral <file.md> [--tui|--nvim|--web]");
+  console.log("Usage: revspec <file.md> [--tui|--nvim|--web]");
   process.exit(0);
 }
 
@@ -914,8 +914,8 @@ if (existsSync(draftPath) && existingDraft === null) {
   unlinkSync(draftPath);
 }
 
-// Step 3: Launch TUI (unless SPECTRAL_SKIP_TUI is set for testing)
-if (!process.env.SPECTRAL_SKIP_TUI) {
+// Step 3: Launch TUI (unless REVSPEC_SKIP_TUI is set for testing)
+if (!process.env.REVSPEC_SKIP_TUI) {
   // TUI will be implemented in Chunk 3
   const { runTui } = await import("../src/tui/app");
   await runTui(specFile, reviewPath, draftPath);
@@ -981,7 +981,7 @@ Expected: All PASS
 - [ ] **Step 7: Commit**
 
 ```bash
-git add bin/spectral.ts src/tui/app.ts test/cli.test.ts
+git add bin/revspec.ts src/tui/app.ts test/cli.test.ts
 git commit -m "feat: implement CLI entry point with file lifecycle"
 ```
 
@@ -1559,7 +1559,7 @@ Expected: All PASS
 
 - [ ] **Step 6: Run the app manually to verify**
 
-Run: `bun run bin/spectral.ts docs/superpowers/specs/2026-03-14-spec-review-tool-design.md`
+Run: `bun run bin/revspec.ts docs/superpowers/specs/2026-03-14-spec-review-tool-design.md`
 Expected: Full-screen TUI with spec content, line numbers, status bar
 
 - [ ] **Step 7: Commit**
@@ -1690,7 +1690,7 @@ else if (key.name === "c") {
 
 - [ ] **Step 3: Test manually**
 
-Run: `bun run bin/spectral.ts docs/superpowers/specs/2026-03-14-spec-review-tool-design.md`
+Run: `bun run bin/revspec.ts docs/superpowers/specs/2026-03-14-spec-review-tool-design.md`
 Press `c` on any line → comment input overlay appears
 Type a comment → Ctrl+Enter → comment saved, overlay closes
 Press Escape → overlay closes without saving
@@ -2059,7 +2059,7 @@ Update the `:q` handler in `src/tui/app.ts`:
 
 - [ ] **Step 3: Test the full flow manually**
 
-1. `bun run bin/spectral.ts <spec-file>`
+1. `bun run bin/revspec.ts <spec-file>`
 2. Navigate with `j/k`
 3. Add comment with `c`
 4. Expand thread with `e`
@@ -2098,23 +2098,23 @@ bun link
 
 - [ ] **Step 2: Verify it runs as a command**
 
-Run: `spectral --help`
+Run: `revspec --help`
 Expected: Usage message
 
 - [ ] **Step 3: Test the full review cycle end-to-end**
 
 1. Create a test spec file
-2. Run `spectral test-spec.md`
+2. Run `revspec test-spec.md`
 3. Add comments, save, quit
 4. Verify `.review.json` exists with correct structure
-5. Run `spectral test-spec.md` again — verify threads load
+5. Run `revspec test-spec.md` again — verify threads load
 6. Approve — verify `APPROVED:` output
 
 - [ ] **Step 4: Commit**
 
 ```bash
 git add package.json
-git commit -m "feat: make spectral executable via bun link"
+git commit -m "feat: make revspec executable via bun link"
 ```
 
 ---

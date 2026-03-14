@@ -5,7 +5,7 @@ import { readReviewFile, readDraftFile } from "../../src/protocol/read";
 import type { ReviewFile, DraftFile } from "../../src/protocol/types";
 
 function tmpDir() {
-  return mkdtempSync("/tmp/spectral-test-");
+  return mkdtempSync("/tmp/revspec-test-");
 }
 
 describe("readReviewFile", () => {

@@ -99,7 +99,7 @@
         },
         {
           "author": "ai",
-          "text": "Great — the Claude Code integration loop is the key piece that closes the human-AI feedback cycle. The `/review-spectral` skill handles the full loop: invoke spectral → read results → process threads → re-invoke."
+          "text": "Great — the Claude Code integration loop is the key piece that closes the human-AI feedback cycle. The `/review-revspec` skill handles the full loop: invoke revspec → read results → process threads → re-invoke."
         }
       ]
     },

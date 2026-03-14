@@ -1,4 +1,4 @@
-# Spectral — Design
+# Revspec — Design
 
 A review tool for AI-generated spec documents. Unlike traditional spec review (human reviews, human author edits), the author here is an AI — it reads structured feedback and acts on every comment instantly. This enables multiple review rounds in a single sitting, with the human's only job being to give feedback.
 
@@ -10,7 +10,7 @@ Traditional review tools (Google Docs, PR reviews) are designed for human-to-hum
 
 ## Solution
 
-A CLI tool (`spectral`) that opens a spec file in a reviewable UI, lets the user add line-anchored comments, and outputs structured JSON on close. The AI reads the JSON, addresses each comment, updates the spec, and re-invokes the review tool — completing the human-AI feedback loop in seconds rather than days.
+A CLI tool (`revspec`) that opens a spec file in a reviewable UI, lets the user add line-anchored comments, and outputs structured JSON on close. The AI reads the JSON, addresses each comment, updates the spec, and re-invokes the review tool — completing the human-AI feedback loop in seconds rather than days.
 
 ## Architecture
 
@@ -18,7 +18,7 @@ A CLI tool (`spectral`) that opens a spec file in a reviewable UI, lets the user
 ┌──────────────────────────────────────────────────────────┐
 │  Protocol: JSON schema (language-agnostic)               │
 ├──────────────────────────────────────────────────────────┤
-│  CLI: spectral <file> [--tui|--nvim|--web]               │
+│  CLI: revspec <file> [--tui|--nvim|--web]               │
 ├──────────┬──────────────┬────────────────────────────────┤
 │ Built-in │ Neovim Plugin│  Web UI                        │
 │ TUI      │ (Lua)        │  (React/Express)               │
@@ -144,10 +144,10 @@ Single-writer contract. The human UI and the AI never write concurrently — the
 ### Usage
 
 ```bash
-spectral <file.md>          # opens with default UI (TUI)
-spectral <file.md> --tui    # explicit TUI (default)
-spectral <file.md> --nvim   # neovim plugin (v2)
-spectral <file.md> --web    # web UI (v2)
+revspec <file.md>          # opens with default UI (TUI)
+revspec <file.md> --tui    # explicit TUI (default)
+revspec <file.md> --nvim   # neovim plugin (v2)
+revspec <file.md> --web    # web UI (v2)
 ```
 
 ### Responsibilities
@@ -166,9 +166,9 @@ spectral <file.md> --web    # web UI (v2)
 
 The CLI communicates with UI adapters via environment variables:
 
-- `SPECTRAL_FILE` — absolute path to the spec markdown file
-- `SPECTRAL_REVIEW` — absolute path to the review JSON file (read existing threads)
-- `SPECTRAL_DRAFT` — absolute path to the draft JSON file (write new threads/messages here)
+- `REVSPEC_FILE` — absolute path to the spec markdown file
+- `REVSPEC_REVIEW` — absolute path to the review JSON file (read existing threads)
+- `REVSPEC_DRAFT` — absolute path to the draft JSON file (write new threads/messages here)
 
 For the built-in TUI (v1), these are used internally. For external adapters (neovim plugin, v2), they are set as env vars before spawning the process.
 
@@ -247,16 +247,16 @@ Pressing `e` on a line with a thread expands it inline:
 When the human presses `a`:
 
 1. TUI checks all threads are `resolved` or `outdated`. If not, shows an error ("N threads still open/pending").
-2. TUI writes `{ "approved": true }` to `$SPECTRAL_DRAFT` and exits.
+2. TUI writes `{ "approved": true }` to `$REVSPEC_DRAFT` and exits.
 3. CLI reads the draft, detects the `approved` flag, prints `APPROVED: <review-file-path>` to stdout.
 
 ### Implementation
 
 - Built into the CLI (Node.js/TypeScript)
 - Uses a terminal UI library (e.g., `ink`, `blessed`, or raw ANSI escape codes)
-- Reads `$SPECTRAL_REVIEW` if it exists (missing file = first review, start fresh), loads existing threads
-- Checks `$SPECTRAL_DRAFT` for in-progress comments (resume)
-- On `:q` — writes draft JSON to `$SPECTRAL_DRAFT` (CLI handles merge to review file)
+- Reads `$REVSPEC_REVIEW` if it exists (missing file = first review, start fresh), loads existing threads
+- Checks `$REVSPEC_DRAFT` for in-progress comments (resume)
+- On `:q` — writes draft JSON to `$REVSPEC_DRAFT` (CLI handles merge to review file)
 - On `:w` — writes draft JSON for manual save / crash recovery
 
 ### Comment Input
@@ -272,7 +272,7 @@ When the user presses `c`:
 
 ```
 1. Claude Code generates spec → spec.md, commits it
-2. Claude Code runs: spectral spec.md
+2. Claude Code runs: revspec spec.md
 3. CLI checks for draft → resumes or starts fresh
 4. TUI opens, human reads spec
 5. Human adds comments (c), searches (/), navigates threads (n/N)
@@ -283,7 +283,7 @@ When the user presses `c`:
    - Sets threads to pending
    - Rewrites .review.json with updated anchors/statuses/responses
    - Commits spec changes
-9. Claude Code runs spectral again → human sees AI responses on pending threads
+9. Claude Code runs revspec again → human sees AI responses on pending threads
 10. Human resolves threads (r), replies to reopen (c), or batch resolves (R)
 11. When all threads are resolved/outdated → human presses a (approve)
 12. CLI exits with "APPROVED: path/to/review.json" → Claude Code proceeds to implementation plan
@@ -291,19 +291,19 @@ When the user presses `c`:
 
 ### Crash Recovery
 
-If the TUI crashes or is killed, the draft file persists. Next invocation of `spectral` detects the draft and resumes with all previous comments loaded.
+If the TUI crashes or is killed, the draft file persists. Next invocation of `revspec` detects the draft and resumes with all previous comments loaded.
 
 ## Claude Code Integration
 
-A `/review-spectral` skill wraps the `spectral` CLI. The skill:
+A `/review-revspec` skill wraps the `revspec` CLI. The skill:
 
-1. Runs `spectral <spec-file>` (blocks while human reviews)
+1. Runs `revspec <spec-file>` (blocks while human reviews)
 2. Reads stdout — if `APPROVED:`, proceeds to implementation plan
 3. If a review file path is returned, reads the JSON, processes each thread:
    - `open` threads: update spec or respond with explanation, set to `pending`
    - `pending` threads with new human replies (flipped back to `open`): re-evaluate
 4. Commits spec changes, rewrites `.review.json` with updated anchors/statuses/responses
-5. Loops back to step 1 (runs `spectral` again)
+5. Loops back to step 1 (runs `revspec` again)
 6. On `APPROVED:`, invokes the writing-plans skill
 
 ## V2 Scope (not built in v1)
@@ -319,7 +319,7 @@ A `/review-spectral` skill wraps the `spectral` CLI. The skill:
 
 - **Google Docs integration** — Use Google Docs as the review UI. Upload the spec as a Google Doc (markdown import), human reviews using native Google Docs commenting, pull comments back via API and map to our JSON protocol.
 - **[gws CLI](https://github.com/googleworkspace/cli)** — Rust CLI for Google Workspace APIs with structured JSON output, MCP server mode, and full Docs API access. Handles doc creation, comment retrieval, and markdown import/export. Designed for AI agent workflows.
-- **Flow:** `spectral spec.md --gdocs` → upload via `gws` → open doc URL → human adds native Google Docs comments → signal done → pull comments via `gws` → map to JSON protocol → merge into `.review.json`
+- **Flow:** `revspec spec.md --gdocs` → upload via `gws` → open doc URL → human adds native Google Docs comments → signal done → pull comments via `gws` → map to JSON protocol → merge into `.review.json`
 
 ## Future Considerations
 

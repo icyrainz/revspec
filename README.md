@@ -1,10 +1,10 @@
-# Spectral
+# Revspec
 
 A review tool for AI-generated spec documents. Unlike traditional spec review (human reviews, human author edits), the author here is an AI — it reads structured feedback and acts on every comment instantly.
 
 ## Why
 
-When an AI generates a spec, the human review step breaks the agentic loop. You have to open the file separately, read it, then type unstructured feedback in the terminal. Spectral closes this loop with a TUI that lets you comment inline and outputs structured JSON the AI can act on immediately.
+When an AI generates a spec, the human review step breaks the agentic loop. You have to open the file separately, read it, then type unstructured feedback in the terminal. Revspec closes this loop with a TUI that lets you comment inline and outputs structured JSON the AI can act on immediately.
 
 ## Install
 
@@ -12,15 +12,15 @@ Requires [Bun](https://bun.sh) (install: `curl -fsSL https://bun.sh/install | ba
 
 ```bash
 git clone https://github.com/icyrainz/spectral.git
-cd spectral && bun install && bun link
+cd spectral && bun install && bun link  # repo dir stays "spectral"
 ```
 
-This adds `spectral` to your PATH.
+This adds `revspec` to your PATH.
 
 ## Usage
 
 ```bash
-spectral spec.md
+revspec spec.md
 ```
 
 Opens a TUI with two modes:
@@ -57,7 +57,7 @@ Opens a TUI with two modes:
 
 ## Review Protocol
 
-Spectral outputs a `.review.json` file next to the spec:
+Revspec outputs a `.review.json` file next to the spec:
 
 ```json
 {
@@ -77,7 +77,7 @@ Spectral outputs a `.review.json` file next to the spec:
 
 Thread statuses: `open` (needs AI attention), `pending` (AI replied), `resolved`, `outdated`.
 
-The AI reads this JSON, addresses comments, updates the spec, rewrites the review file with updated anchors/statuses, and re-invokes Spectral. The loop continues until the human approves.
+The AI reads this JSON, addresses comments, updates the spec, rewrites the review file with updated anchors/statuses, and re-invokes Revspec. The loop continues until the human approves.
 
 ## Roadmap
 

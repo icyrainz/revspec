@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "fs";
 import { join, resolve } from "path";
 import { tmpdir } from "os";
 
-const CLI = resolve(import.meta.dir, "../bin/spectral.ts");
+const CLI = resolve(import.meta.dir, "../bin/revspec.ts");
 
 interface SpawnResult {
   exitCode: number;
@@ -16,7 +16,7 @@ async function runCli(
   env: Record<string, string> = {}
 ): Promise<SpawnResult> {
   const proc = Bun.spawn(["bun", "run", CLI, ...args], {
-    env: { ...process.env, SPECTRAL_SKIP_TUI: "1", ...env },
+    env: { ...process.env, REVSPEC_SKIP_TUI: "1", ...env },
     stdout: "pipe",
     stderr: "pipe",
   });
@@ -35,7 +35,7 @@ describe("CLI entry point", () => {
 
   // Create a fresh temp dir before each test
   function setup(): string {
-    tmpDir = mkdtempSync(join(tmpdir(), "spectral-test-"));
+    tmpDir = mkdtempSync(join(tmpdir(), "revspec-test-"));
     return tmpDir;
   }
 
