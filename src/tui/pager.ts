@@ -99,14 +99,13 @@ export interface PagerComponents {
  * Only one is visible at a time. Toggle with `m`.
  */
 export function createPager(renderer: CliRenderer): PagerComponents {
-  // Line mode — plain text with line numbers, cursor, thread indicators
+  // Line mode (default) — plain text with line numbers, cursor, thread indicators
   const lineNode = new TextRenderable(renderer, {
     content: "",
     width: "100%",
     wrapMode: "none",
     fg: theme.text,
     bg: theme.base,
-    visible: false, // hidden by default — markdown mode is default
   });
 
   // Markdown mode — rendered markdown, full-width, beautiful reading
@@ -115,6 +114,7 @@ export function createPager(renderer: CliRenderer): PagerComponents {
     width: "100%",
     syntaxStyle: createMarkdownStyle(),
     conceal: true,
+    visible: false, // hidden by default — line mode is default
   });
 
   // Scrollable container
@@ -130,7 +130,7 @@ export function createPager(renderer: CliRenderer): PagerComponents {
   scrollBox.add(markdownNode);
   scrollBox.add(lineNode);
 
-  return { scrollBox, lineNode, markdownNode, mode: "markdown" };
+  return { scrollBox, lineNode, markdownNode, mode: "line" };
 }
 
 /**
