@@ -98,6 +98,9 @@ export async function runTui(
   // Command mode state
   let commandBuffer: string | null = null;
 
+  // Track unsaved changes
+  let hasUnsavedChanges = false;
+
   // Bracket-pending state for ]c / [c navigation
   let bracketPending: "]" | "[" | null = null;
 
@@ -156,8 +159,8 @@ export async function runTui(
   function processCommand(cmd: string, resolve: () => void): boolean {
     if (cmd === "w") {
       saveDraft();
+      hasUnsavedChanges = false;
       // Show "saved" feedback briefly
-      commandBuffer = null;
       bottomBar.bar.content = " \u2714 saved";
       renderer.requestRender();
       setTimeout(() => {
@@ -166,26 +169,19 @@ export async function runTui(
       return false; // don't exit
     }
     if (cmd === "q") {
-      // Show confirm dialog if there are pending comments
-      const { open, pending } = state.activeThreadCount();
-      const total = open + pending;
-      if (total > 0) {
-        showConfirmQuit(resolve);
+      // Block if there are unsaved changes
+      if (hasUnsavedChanges) {
+        bottomBar.bar.content = " \u26a0  Unsaved changes — use :wq to save and quit, or :q! to discard";
+        renderer.requestRender();
+        setTimeout(() => { refreshPager(); }, 2000);
         return false;
       }
-      saveDraft();
-      return true; // exit
+      return true; // exit (already saved or no changes)
     }
     if (cmd === "wq") {
       saveDraft();
-      // Show confirm dialog if there are pending comments
-      const { open, pending } = state.activeThreadCount();
-      const total = open + pending;
-      if (total > 0) {
-        showConfirmQuit(resolve);
-        return false;
-      }
-      return true; // saved + exit
+      hasUnsavedChanges = false;
+      return true; // save and exit
     }
     if (cmd === "q!") {
       return true; // exit without saving
@@ -207,6 +203,7 @@ export async function runTui(
         } else {
           state.addComment(state.cursorLine, text);
         }
+        hasUnsavedChanges = true;
         dismissOverlay();
       },
       onCancel: () => {
@@ -225,6 +222,7 @@ export async function runTui(
       thread,
       onResolve: () => {
         state.resolveThread(thread.id);
+        hasUnsavedChanges = true;
         dismissOverlay();
       },
       onContinue: () => {
@@ -352,7 +350,8 @@ export async function runTui(
             resolve();
             return;
           }
-          refreshPager();
+          // Don't refreshPager here — processCommand handles its own bar updates
+          // (e.g., :w shows "saved" briefly before refreshing via setTimeout)
           return;
         }
         if (key.name === "escape") {
@@ -397,19 +396,29 @@ export async function runTui(
       switch (key.name) {
         case "j":
         case "down": {
-          if (state.cursorLine < state.lineCount) {
-            state.cursorLine++;
-            ensureCursorVisible();
-            refreshPager();
+          if (pager.mode === "markdown") {
+            pager.scrollBox.scrollBy(1);
+            renderer.requestRender();
+          } else {
+            if (state.cursorLine < state.lineCount) {
+              state.cursorLine++;
+              ensureCursorVisible();
+              refreshPager();
+            }
           }
           break;
         }
         case "k":
         case "up": {
-          if (state.cursorLine > 1) {
-            state.cursorLine--;
-            ensureCursorVisible();
-            refreshPager();
+          if (pager.mode === "markdown") {
+            pager.scrollBox.scrollBy(-1);
+            renderer.requestRender();
+          } else {
+            if (state.cursorLine > 1) {
+              state.cursorLine--;
+              ensureCursorVisible();
+              refreshPager();
+            }
           }
           break;
         }
@@ -417,14 +426,20 @@ export async function runTui(
           // Ctrl+D — half page down
           if (key.ctrl) {
             const half = Math.max(1, Math.floor(pageSize() / 2));
-            state.cursorLine = Math.min(state.cursorLine + half, state.lineCount);
-            ensureCursorVisible();
-            refreshPager();
+            if (pager.mode === "markdown") {
+              pager.scrollBox.scrollBy(half);
+              renderer.requestRender();
+            } else {
+              state.cursorLine = Math.min(state.cursorLine + half, state.lineCount);
+              ensureCursorVisible();
+              refreshPager();
+            }
           } else {
             // d without ctrl — delete draft comment
             const thread = state.threadAtLine(state.cursorLine);
             if (thread) {
               state.deleteLastDraftMessage(thread.id);
+              hasUnsavedChanges = true;
               refreshPager();
             }
           }
@@ -434,9 +449,14 @@ export async function runTui(
           // Ctrl+U — half page up
           if (key.ctrl) {
             const half = Math.max(1, Math.floor(pageSize() / 2));
-            state.cursorLine = Math.max(state.cursorLine - half, 1);
-            ensureCursorVisible();
-            refreshPager();
+            if (pager.mode === "markdown") {
+              pager.scrollBox.scrollBy(-half);
+              renderer.requestRender();
+            } else {
+              state.cursorLine = Math.max(state.cursorLine - half, 1);
+              ensureCursorVisible();
+              refreshPager();
+            }
           }
           break;
         }
@@ -505,11 +525,13 @@ export async function runTui(
             const thread = state.threadAtLine(state.cursorLine);
             if (thread) {
               state.resolveThread(thread.id);
+              hasUnsavedChanges = true;
               refreshPager();
             }
           } else {
             // Shift+R = resolve all pending
             state.resolveAllPending();
+            hasUnsavedChanges = true;
             refreshPager();
           }
           break;
