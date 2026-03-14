@@ -173,8 +173,11 @@ spectral <file.md> --web    # web UI (v2)
 2. Check for `.review.draft.json` — if exists, validate it's parseable JSON. If corrupted, warn the user ("Draft file corrupted, starting fresh") and delete it. If valid, pass to UI for resume
 3. Open the chosen UI, passing: spec file path, review file path, draft file path (see CLI→Plugin Interface below)
 4. Block until the UI exits
-5. If the draft contains threads, merge them into `.review.json` (add new threads, append new messages to existing threads) and delete the draft. If the draft is empty, delete it.
-6. Print the review file path to stdout and exit 0. Always print the path if a `.review.json` exists (even if no new comments this round — there may be `discussed` threads needing attention). Print nothing only if no review file exists at all (first round, human closed without commenting)
+5. Read the draft file. If it contains `"approved": true`, this is an approval (see Approve Mechanism below). Otherwise, merge threads into `.review.json` (add new threads, append new messages to existing threads). Delete the draft.
+6. Output to stdout and exit:
+   - **Approved:** print `APPROVED: <review-file-path>` and exit 0
+   - **Has review file:** print `<review-file-path>` and exit 0 (there may be `discussed` threads needing attention)
+   - **No review file:** print nothing and exit 0 (first round, human closed without commenting)
 
 ### CLI→Plugin Interface
 
@@ -263,6 +266,24 @@ The expand view (`<leader>me`) shows the full thread in a floating window:
 | `<leader>ml` | Normal | List all open threads (quickfix) |
 | `]c` | Normal | Jump to next open thread |
 | `[c` | Normal | Jump to previous open thread |
+
+### Approve Mechanism
+
+When the human presses `<leader>ma`:
+
+1. Plugin checks all threads are `addressed`, `resolved`, or `outdated`. If not, shows an error ("N threads still open/discussed").
+2. Plugin writes `{ "approved": true }` to `$SPECTRAL_DRAFT` and exits neovim.
+3. CLI reads the draft, detects the `approved` flag, prints `APPROVED: <review-file-path>` to stdout.
+
+### Diff Mode
+
+On subsequent rounds (when a `.review.json` exists with AI responses), the plugin opens in diff mode:
+
+- **Left buffer:** previous spec version from git (`git show HEAD:<spec-file>` — the last committed version before the AI's latest edits)
+- **Right buffer:** current spec file (with AI edits), read-only, with comment overlays
+- **First round** (no `.review.json` or no AI responses): single-buffer mode, no diff
+
+If the spec has no git history (never committed), falls back to single-buffer mode.
 
 ### Implementation
 
