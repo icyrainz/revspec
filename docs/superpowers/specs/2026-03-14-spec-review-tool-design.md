@@ -201,22 +201,31 @@ nvim -c "lua require('spectral').start()" /path/to/spec.md
 
 ### UX
 
-The plugin opens the spec file in a read-only buffer with an overlay comment system using neovim extmarks (virtual text).
+On subsequent rounds (after the AI has edited the spec), the plugin opens in **diff + review mode** using neovim's built-in diff. The previous spec version (from git) is shown alongside the current version, with comment overlays on the right side. This lets the human see exactly what the AI changed without re-reading the whole spec.
+
+```
+┌─ Previous (git) ──────────────────┬─ Current (AI edits) ──────────────────────┐
+│ 12  The system uses a webhook...  │ 12  The system uses polling...  ✅ changed │
+│                                   │                                            │
+│ 45  Events are sent via webhook   │ 45  Events are sent via webhook 💬 ambig.  │
+│                                   │ 46                              🤖 clear…  │
+│                                   │                                            │
+│ 20  The retry logic should        │ 20  ┃ The retry logic should   💬 rethink  │
+│ 21  handle exponential backoff    │ 21  ┃ handle exponential backoff           │
+└───────────────────────────────────┴────────────────────────────────────────────┘
+```
+
+On the first round (no prior version), the plugin opens in single-buffer review mode:
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
 │ docs/specs/2026-03-14-feature-design.md             [Review] │
 ├──────────────────────────────────────────────────────────────┤
 │ 12  The system uses polling...    ✅ changed to polling      │
-│ 13  to notify downstream                                     │
-│ 14                                                           │
 │ 45  Events are sent via webhook   💬 this term is ambiguous  │
 │ 46                                   🤖 I think it's clear…  │
-│ 47                                                           │
 │ 20  ┃ The retry logic should      💬 rethink this section    │
 │ 21  ┃ handle exponential backoff                             │
-│ 22  ┃ with a maximum of 5 retries                            │
-│ 23  ┃ before dead-lettering                                  │
 └──────────────────────────────────────────────────────────────┘
 
 Status indicators:
@@ -248,6 +257,8 @@ The expand view (`<leader>me`) shows the full thread in a floating window:
 | `<leader>mc` | Visual | Add comment on selected region |
 | `<leader>me` | Normal | Expand thread under cursor (full markdown, actions) |
 | `<leader>mr` | Normal | Resolve thread under cursor |
+| `<leader>mR` | Normal | Resolve all `discussed` threads (batch resolve) |
+| `<leader>ma` | Normal | Approve spec — all threads must be resolved/addressed first |
 | `<leader>md` | Normal | Delete own draft message under cursor (rewrites draft file; only works on unsubmitted messages, not on the review file) |
 | `<leader>ml` | Normal | List all open threads (quickfix) |
 | `]c` | Normal | Jump to next open thread |
@@ -282,28 +293,43 @@ Messages are stored as markdown in the JSON. Neovim cannot render markdown in vi
 ## Review Lifecycle
 
 ```
-1. Claude Code generates spec → spec.md
+1. Claude Code generates spec → spec.md, commits it
 2. Claude Code runs: spectral spec.md
 3. CLI checks for draft → resumes or starts fresh
-4. Neovim opens with review plugin loaded, showing existing threads + AI responses
+4. Neovim opens (first round: single buffer; subsequent rounds: diff mode showing AI changes)
 5. Human reads, adds comments, resolves addressed threads
 6. On :w → plugin writes .review.draft.json (incremental save)
 7. On :q → CLI merges draft into .review.json, exits
-8. Claude Code reads .review.json, processes open threads (updates spec or responds), rewrites .review.json with updated anchors/statuses/responses
-9. Claude Code runs spectral again → human sees AI responses, continues or resolves
-10. Done when all threads are addressed or resolved
+8. Claude Code reads .review.json, processes open threads (updates spec or responds),
+   rewrites .review.json with updated anchors/statuses/responses, commits spec changes
+9. Claude Code runs spectral again → human sees diff of AI changes + AI responses
+10. Human resolves threads, or continues discussion
+11. When all threads clear → human presses <leader>ma (approve)
+12. CLI exits with "APPROVED: path/to/spec.md" on stdout → Claude Code proceeds to implementation plan
 ```
 
 ### Crash Recovery
 
 If neovim crashes or is killed, the draft file persists. Next invocation of `spectral` detects the draft and resumes with all previous messages loaded.
 
+## Claude Code Integration
+
+A `/review-spectral` skill wraps the `spectral` CLI. The skill:
+
+1. Runs `spectral <spec-file>` (blocks while human reviews)
+2. Reads stdout — if `APPROVED:`, proceeds to implementation plan
+3. If a review file path is returned, reads the JSON, processes each open thread:
+   - `open` threads: update spec or respond with explanation
+   - `discussed` threads with new human replies: re-evaluate
+4. Commits spec changes, rewrites `.review.json` with updated anchors/statuses/responses
+5. Loops back to step 1 (runs `spectral` again)
+6. On `APPROVED:`, invokes the writing-plans skill
+
 ## V2 Scope (not built in v1)
 
 - **Web UI** — Express server + React frontend, difit-inspired. Markdown rendered with line numbers, click/drag to comment, submit button finalizes.
 - **Touch/region gestures** — circle-to-select on iPad, translated to region anchors by the UI.
-- **Round navigation** — view previous review rounds in the UI for context.
-- **Claude Code skill integration** — a `/review` skill that automates the spectral invocation.
+- **History navigation** — view previous review states via git history for context.
 
 ## V3 Scope (not built in v1 or v2)
 
