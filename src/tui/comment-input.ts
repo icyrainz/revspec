@@ -124,8 +124,8 @@ export function createCommentInput(opts: CommentInputOptions): CommentInputOverl
 
   // Hint line — show resolve option only for existing threads
   const hintText = hasThread
-    ? " [Ctrl+S] submit  [Ctrl+R] resolve  [Esc] cancel"
-    : " [Ctrl+S] submit  [Esc] cancel";
+    ? " [Ctrl+S/Enter] submit  [Ctrl+R] resolve  [Esc] cancel"
+    : " [Ctrl+S/Enter] submit  [Esc] cancel";
 
   const hint = new TextRenderable(renderer, {
     content: hintText,

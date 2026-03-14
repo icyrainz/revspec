@@ -100,8 +100,9 @@ export async function runTui(
   // Track unsaved changes
   let hasUnsavedChanges = false;
 
-  // Bracket-pending state for ]c / [c navigation
+  // Bracket-pending state for ]t / [t navigation
   let bracketPending: "]" | "[" | null = null;
+  let bracketPendingTimer: ReturnType<typeof setTimeout> | null = null;
 
   // Delete-pending state: first `d` sets timer, second `d` within 500ms executes
   let deletePendingTimer: ReturnType<typeof setTimeout> | null = null;
@@ -415,9 +416,19 @@ export async function runTui(
               // Second d within 500ms — execute delete
               clearTimeout(deletePendingTimer);
               deletePendingTimer = null;
-              state.deleteLastDraftMessage(thread.id);
-              hasUnsavedChanges = true;
-              refreshPager();
+              const hadHumanMsg = thread.messages.some((m) => m.author === "human");
+              if (hadHumanMsg) {
+                state.deleteLastDraftMessage(thread.id);
+                hasUnsavedChanges = true;
+                refreshPager();
+                bottomBar.bar.content = " \u2714 Deleted draft comment";
+                renderer.requestRender();
+                setTimeout(() => { refreshPager(); }, 1500);
+              } else {
+                bottomBar.bar.content = " No human message to delete";
+                renderer.requestRender();
+                setTimeout(() => { refreshPager(); }, 1500);
+              }
             } else {
               // First d — show hint and start timer
               bottomBar.bar.content = " Press d again to delete";
@@ -513,19 +524,26 @@ export async function runTui(
             // Resolve thread at cursor
             const thread = state.threadAtLine(state.cursorLine);
             if (thread) {
+              const wasResolved = thread.status === "resolved";
               state.resolveThread(thread.id);
               hasUnsavedChanges = true;
               refreshPager();
-              // Show feedback briefly
-              bottomBar.bar.content = ` \u2714 Resolved thread #${thread.id}`;
+              const msg = wasResolved
+                ? ` \u21a9 Reopened thread #${thread.id}`
+                : ` \u2714 Resolved thread #${thread.id}`;
+              bottomBar.bar.content = msg;
               renderer.requestRender();
               setTimeout(() => { refreshPager(); }, 1500);
             }
           } else {
             // Shift+R = resolve all pending
+            const { pending } = state.activeThreadCount();
             state.resolveAllPending();
             hasUnsavedChanges = true;
             refreshPager();
+            bottomBar.bar.content = ` \u2714 Resolved ${pending} pending thread(s)`;
+            renderer.requestRender();
+            setTimeout(() => { refreshPager(); }, 1500);
           }
           break;
         }
@@ -603,6 +621,7 @@ export async function runTui(
           if (bracketPending !== null) {
             const pending = bracketPending;
             bracketPending = null;
+            if (bracketPendingTimer) { clearTimeout(bracketPendingTimer); bracketPendingTimer = null; }
             if (key.name === "t" || key.sequence === "t") {
               if (pending === "]") {
                 const next = state.nextActiveThread();
@@ -620,15 +639,30 @@ export async function runTui(
                 }
               }
             }
+            refreshPager(); // clear the bracket hint
             break;
           }
           // Check for "]" or "[" to start bracket sequence
           if (key.sequence === "]") {
             bracketPending = "]";
+            bottomBar.bar.content = " ]...";
+            renderer.requestRender();
+            bracketPendingTimer = setTimeout(() => {
+              bracketPending = null;
+              bracketPendingTimer = null;
+              refreshPager();
+            }, 500);
             break;
           }
           if (key.sequence === "[") {
             bracketPending = "[";
+            bottomBar.bar.content = " [...";
+            renderer.requestRender();
+            bracketPendingTimer = setTimeout(() => {
+              bracketPending = null;
+              bracketPendingTimer = null;
+              refreshPager();
+            }, 500);
             break;
           }
           // Check for "?" to show help overlay
