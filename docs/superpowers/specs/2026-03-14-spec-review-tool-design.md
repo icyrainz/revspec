@@ -41,6 +41,7 @@ The review file is a JSON document with threads as first-class objects. The AI r
 ```json
 {
   "file": "docs/specs/2026-03-14-feature-design.md",
+  "specRevision": "abc123",
   "threads": [
     {
       "id": "1",
@@ -85,6 +86,8 @@ The review file is a JSON document with threads as first-class objects. The AI r
   ]
 }
 ```
+
+**Top-level fields:** `file` is the spec path. `specRevision` is the git commit hash of the spec when the AI last wrote the review file — used for diff highlighting. `threads` contains the review threads.
 
 **Thread model:** Each thread is an object with an anchor, a status, and an ordered array of messages. The AI can update anchors directly (e.g., after editing the spec shifts line numbers) without appending workaround messages.
 
@@ -273,10 +276,13 @@ When the human presses `a`:
 
 On subsequent rounds (when a `.review.json` exists with AI responses), the TUI highlights lines that changed since the last review:
 
-- Changed lines are computed from `git diff HEAD~1 -- <spec-file>`
+- The review JSON stores `specRevision` — the git commit hash of the spec when the AI last wrote the review file
+- Changed lines are computed from `git diff <specRevision> -- <spec-file>`
 - Added lines shown with `+` gutter marker
 - Modified lines shown with `~` gutter marker
-- First round (no git history): no diff markers
+- First round (no `specRevision` or no git history): no diff markers
+
+This is more reliable than `HEAD~1` — it works even if the user made unrelated commits between review rounds.
 
 ### Implementation
 
@@ -294,11 +300,25 @@ When the user presses `c`:
 - **On a line with no thread:** opens an inline text input below the current line. A new thread `id` is assigned.
 - **On a line with an existing thread:** expands the thread first, opens a reply input at the bottom.
 
-`Enter` submits single-line comments. For multi-line, `Enter` adds a newline, `Ctrl+D` submits. `Escape` cancels.
+`Enter` submits the comment. For multi-line input, `Ctrl+Enter` adds a newline. `Escape` cancels. The TUI shows a hint: `[Enter] submit  [Ctrl+Enter] newline  [Esc] cancel`.
 
 ### Comment Rendering
 
 Messages are stored as markdown in the JSON. The TUI renders markdown as plain text with basic formatting (bold, italic, code blocks) using ANSI escape codes. Full markdown rendering is available in the thread expand view.
+
+### Thread Display Density
+
+When a spec has many threads, the main pager view stays readable by:
+
+- Showing only the status indicator + first line of the latest message (truncated) per thread
+- Collapsing `resolved` and `addressed` threads to just the status icon (no message text)
+- The `l` (list) key shows a summary of all threads with status, making it easy to jump to unresolved ones
+
+### Text Rendering
+
+- Long lines: soft-wrap at terminal width (no horizontal scrolling)
+- Code blocks: rendered with indentation, preserving formatting
+- Unicode: supported — the TUI must handle wide characters (CJK, emoji) correctly for column alignment
 
 ## Review Lifecycle
 
@@ -332,7 +352,7 @@ A `/review-spectral` skill wraps the `spectral` CLI. The skill:
    - `open` threads: update spec or respond with explanation
    - `discussed` threads with new human replies: re-evaluate
    - `discussed` threads with no human action: prompt the user about them before next spectral invocation
-4. Commits spec changes, rewrites `.review.json` with updated anchors/statuses/responses
+4. Commits spec changes, rewrites `.review.json` with updated anchors/statuses/responses and sets `specRevision` to the new commit hash
 5. Loops back to step 1 (runs `spectral` again)
 6. On `APPROVED:`, invokes the writing-plans skill
 
