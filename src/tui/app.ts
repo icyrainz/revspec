@@ -19,6 +19,11 @@ import {
   type TopBarComponents,
   type BottomBarComponents,
 } from "./status-bar";
+import { createCommentInput } from "./comment-input";
+import { createThreadExpand } from "./thread-expand";
+import { createSearch } from "./search";
+import { createThreadList } from "./thread-list";
+import { createConfirm } from "./confirm";
 
 export async function runTui(
   specFile: string,
@@ -85,6 +90,31 @@ export async function runTui(
   // Command mode state
   let commandBuffer: string | null = null;
 
+  // Overlay state — when an overlay is active, normal keybindings are blocked.
+  // The overlay's own key handlers manage its lifecycle.
+  type ActiveOverlay = {
+    container: BoxRenderable;
+    cleanup: () => void;
+  } | null;
+  let activeOverlay: ActiveOverlay = null;
+
+  // Helper: dismiss the current overlay and return to normal mode
+  function dismissOverlay(): void {
+    if (activeOverlay) {
+      activeOverlay.cleanup();
+      renderer.root.remove(activeOverlay.container.id);
+      activeOverlay = null;
+      refreshPager();
+    }
+  }
+
+  // Helper: show an overlay
+  function showOverlay(overlay: { container: BoxRenderable; cleanup: () => void }): void {
+    activeOverlay = overlay;
+    renderer.root.add(overlay.container);
+    renderer.requestRender();
+  }
+
   // Helper: save draft file
   function saveDraft(): void {
     const draft = state.toDraft();
@@ -112,12 +142,19 @@ export async function runTui(
   }
 
   // Process command buffer input
-  function processCommand(cmd: string): boolean {
+  function processCommand(cmd: string, resolve: () => void): boolean {
     if (cmd === "w") {
       saveDraft();
       return false; // don't exit
     }
     if (cmd === "q") {
+      // Show confirm dialog if there are pending comments
+      const { open, pending } = state.activeThreadCount();
+      const total = open + pending;
+      if (total > 0) {
+        showConfirmQuit(resolve);
+        return false;
+      }
       saveDraft();
       return true; // exit
     }
@@ -127,18 +164,127 @@ export async function runTui(
     return false; // unknown command, ignore
   }
 
+  // --- Overlay launchers ---
+
+  function showCommentInput(): void {
+    const existingThread = state.threadAtLine(state.cursorLine);
+    const overlay = createCommentInput({
+      renderer,
+      line: state.cursorLine,
+      existingThread,
+      onSubmit: (text: string) => {
+        if (existingThread) {
+          state.replyToThread(existingThread.id, text);
+        } else {
+          state.addComment(state.cursorLine, text);
+        }
+        dismissOverlay();
+      },
+      onCancel: () => {
+        dismissOverlay();
+      },
+    });
+    showOverlay(overlay);
+  }
+
+  function showThreadExpandOverlay(): void {
+    const thread = state.threadAtLine(state.cursorLine);
+    if (!thread) return;
+
+    const overlay = createThreadExpand({
+      renderer,
+      thread,
+      onResolve: () => {
+        state.resolveThread(thread.id);
+        dismissOverlay();
+      },
+      onContinue: () => {
+        // Close expand overlay, then open comment input as reply
+        dismissOverlay();
+        showCommentInput();
+      },
+      onClose: () => {
+        dismissOverlay();
+      },
+    });
+    showOverlay(overlay);
+  }
+
+  function showSearchOverlay(): void {
+    const overlay = createSearch({
+      renderer,
+      specLines: state.specLines,
+      cursorLine: state.cursorLine,
+      onResult: (lineNumber: number) => {
+        state.cursorLine = lineNumber;
+        dismissOverlay();
+        ensureCursorVisible();
+        refreshPager();
+      },
+      onCancel: () => {
+        dismissOverlay();
+      },
+    });
+    showOverlay(overlay);
+  }
+
+  function showThreadListOverlay(): void {
+    const overlay = createThreadList({
+      renderer,
+      threads: state.threads,
+      onSelect: (lineNumber: number) => {
+        state.cursorLine = lineNumber;
+        dismissOverlay();
+        ensureCursorVisible();
+        refreshPager();
+      },
+      onCancel: () => {
+        dismissOverlay();
+      },
+    });
+    showOverlay(overlay);
+  }
+
+  function showConfirmQuit(resolve: () => void): void {
+    const { open, pending } = state.activeThreadCount();
+    const total = open + pending;
+    const overlay = createConfirm({
+      renderer,
+      message: `Submit ${total} active thread(s) and quit? [y/n]`,
+      onConfirm: () => {
+        dismissOverlay();
+        saveDraft();
+        renderer.destroy();
+        resolve();
+      },
+      onCancel: () => {
+        dismissOverlay();
+      },
+    });
+    showOverlay(overlay);
+  }
+
   refreshPager();
   renderer.start();
 
   // 7. Set up keybinding handler
   return new Promise<void>((resolve) => {
     renderer.keyInput.on("keypress", (key: KeyEvent) => {
+      // If an overlay is active, let its own handlers manage keys.
+      // Only intercept Ctrl+C to force quit.
+      if (activeOverlay) {
+        if (key.ctrl && key.name === "c") {
+          dismissOverlay();
+        }
+        return;
+      }
+
       // If in command mode, buffer keypresses
       if (commandBuffer !== null) {
         if (key.name === "return") {
           const cmd = commandBuffer;
           commandBuffer = null;
-          const shouldExit = processCommand(cmd);
+          const shouldExit = processCommand(cmd, resolve);
           if (shouldExit) {
             renderer.destroy();
             resolve();
@@ -232,6 +378,21 @@ export async function runTui(
           }
           break;
         }
+        case "c": {
+          // Comment: new or reply
+          showCommentInput();
+          break;
+        }
+        case "e": {
+          // Expand thread at cursor
+          showThreadExpandOverlay();
+          break;
+        }
+        case "l": {
+          // Thread list
+          showThreadListOverlay();
+          break;
+        }
         case "r": {
           if (!key.shift) {
             // Resolve thread at cursor
@@ -267,6 +428,11 @@ export async function runTui(
           break;
         }
         default: {
+          // Check for "/" to enter search mode
+          if (key.sequence === "/") {
+            showSearchOverlay();
+            break;
+          }
           // Check for ":" to enter command mode
           if (key.sequence === ":") {
             commandBuffer = "";

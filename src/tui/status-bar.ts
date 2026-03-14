@@ -35,7 +35,7 @@ export function buildBottomBarText(commandBuffer: string | null): string {
   if (commandBuffer !== null) {
     return ` :${commandBuffer}`;
   }
-  return " j/k:move  Space/b:page  n/N:thread  c:comment  r:resolve  R:resolve-all  d:delete  a:approve  ::command";
+  return " j/k:move  Space/b:page  n/N:thread  c:comment  e:expand  l:list  /:search  r:resolve  d:delete  a:approve  ::cmd";
 }
 
 /**
