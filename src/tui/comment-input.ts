@@ -2,6 +2,7 @@ import {
   BoxRenderable,
   TextRenderable,
   TextareaRenderable,
+  ScrollBoxRenderable,
   type CliRenderer,
   type KeyEvent,
 } from "@opentui/core";
@@ -13,6 +14,7 @@ export interface CommentInputOptions {
   line: number;
   existingThread: Thread | null;
   onSubmit: (text: string) => void;
+  onResolve: () => void;
   onCancel: () => void;
 }
 
@@ -24,26 +26,29 @@ export interface CommentInputOverlay {
 const MAX_CONTEXT_LENGTH = 80;
 
 /**
- * Create a comment input overlay.
- * - If no existing thread: "New comment on line N"
- * - If existing thread: "Reply to thread #N" with last message context
+ * Create a unified comment/thread overlay.
+ * - New comment: just a text input
+ * - Existing thread: scrollable conversation + reply input + resolve action
  *
- * Ctrl+S submits, Esc cancels.
+ * Ctrl+S submits reply, r resolves, Esc cancels.
  */
 export function createCommentInput(opts: CommentInputOptions): CommentInputOverlay {
-  const { renderer, line, existingThread, onSubmit, onCancel } = opts;
+  const { renderer, line, existingThread, onSubmit, onResolve, onCancel } = opts;
 
+  const hasThread = existingThread && existingThread.messages.length > 0;
   const label = existingThread
-    ? `Reply to thread #${existingThread.id}`
+    ? `Thread #${existingThread.id} (line ${line}) [${existingThread.status.toUpperCase()}]`
     : `New comment on line ${line}`;
 
-  // Overlay container - absolute positioned, centered
+  // Larger overlay for threads with conversation, smaller for new comments
+  const overlayHeight = hasThread ? "80%" : 10;
+
   const container = new BoxRenderable(renderer, {
     position: "absolute",
-    top: "20%",
+    top: hasThread ? "5%" : "30%",
     left: "10%",
     width: "80%",
-    height: 12,
+    height: overlayHeight,
     zIndex: 100,
     backgroundColor: theme.base,
     border: true,
@@ -54,31 +59,56 @@ export function createCommentInput(opts: CommentInputOptions): CommentInputOverl
     padding: 1,
   });
 
-  // Show last N messages as read-only context when replying.
-  // Always show the most recent messages so the AI reply is visible.
-  const MAX_CONTEXT_LINES = 6;
-  if (existingThread && existingThread.messages.length > 0) {
-    const allContextLines = existingThread.messages.map((msg) => {
-      const icon = msg.author === "human" ? "You" : " AI";
-      const preview = msg.text.replace(/\n/g, " ");
-      return ` ${icon}: ${preview.length > MAX_CONTEXT_LENGTH ? preview.slice(0, MAX_CONTEXT_LENGTH - 1) + "\u2026" : preview}`;
-    });
-    // Show the last N messages (most recent, including AI reply)
-    const visible = allContextLines.slice(-MAX_CONTEXT_LINES);
-    const prefix = allContextLines.length > MAX_CONTEXT_LINES ? ` ... ${allContextLines.length - MAX_CONTEXT_LINES} earlier message(s)\n` : "";
-    const contextText = new TextRenderable(renderer, {
-      content: prefix + visible.join("\n"),
+  // Show full thread conversation in a scrollable area
+  if (hasThread) {
+    const scrollBox = new ScrollBoxRenderable(renderer, {
       width: "100%",
-      height: Math.min(visible.length + (prefix ? 1 : 0), MAX_CONTEXT_LINES + 1),
-      fg: theme.overlay,
-      wrapMode: "none",
-      truncate: true,
+      flexGrow: 1,
+      flexShrink: 1,
+      scrollY: true,
+      scrollX: false,
     });
-    container.add(contextText);
+
+    const lines: string[] = [];
+    for (const msg of existingThread!.messages) {
+      const authorLabel = msg.author === "human" ? "You" : " AI";
+      lines.push(`${authorLabel}:`);
+      for (const textLine of msg.text.split("\n")) {
+        lines.push(`  ${textLine}`);
+      }
+      lines.push("");
+    }
+
+    const messageText = new TextRenderable(renderer, {
+      content: lines.join("\n"),
+      width: "100%",
+      fg: theme.text,
+      wrapMode: "word",
+    });
+
+    scrollBox.add(messageText);
+    container.add(scrollBox);
+
+    // Scroll to bottom to show latest message
+    setTimeout(() => {
+      scrollBox.scrollTo(scrollBox.scrollHeight);
+      renderer.requestRender();
+    }, 0);
   }
 
-  // Pre-fill only if the last message is from human (editing own draft in same session).
-  // If AI has replied (last message is from AI, or status is pending), start empty.
+  // Separator between conversation and input
+  if (hasThread) {
+    const sep = new TextRenderable(renderer, {
+      content: " Reply:",
+      width: "100%",
+      height: 1,
+      fg: theme.subtext,
+      wrapMode: "none",
+    });
+    container.add(sep);
+  }
+
+  // Pre-fill only if the last message is from human (editing own draft)
   let initialValue = "";
   if (existingThread && existingThread.messages.length > 0) {
     const lastMsg = existingThread.messages[existingThread.messages.length - 1];
@@ -87,23 +117,27 @@ export function createCommentInput(opts: CommentInputOptions): CommentInputOverl
     }
   }
 
-  // Textarea for input
   const textarea = new TextareaRenderable(renderer, {
     width: "100%",
-    flexGrow: 1,
+    height: hasThread ? 4 : undefined,
+    flexGrow: hasThread ? 0 : 1,
     backgroundColor: theme.surface0,
     textColor: theme.text,
     focusedBackgroundColor: theme.surface0,
     focusedTextColor: theme.text,
     wrapMode: "word",
-    placeholder: "Type your comment...",
+    placeholder: hasThread ? "Type your reply..." : "Type your comment...",
     placeholderColor: theme.overlay,
     initialValue,
   });
 
-  // Hint line
+  // Hint line — show resolve option only for existing threads
+  const hintText = hasThread
+    ? " [Ctrl+S] submit  [Ctrl+R] resolve  [Esc] cancel"
+    : " [Ctrl+S] submit  [Esc] cancel";
+
   const hint = new TextRenderable(renderer, {
-    content: " [Ctrl+S] submit  [Esc] cancel",
+    content: hintText,
     width: "100%",
     height: 1,
     fg: theme.hintFg,
@@ -115,17 +149,14 @@ export function createCommentInput(opts: CommentInputOptions): CommentInputOverl
   container.add(textarea);
   container.add(hint);
 
-  // Focus the textarea so it receives keypress events.
-  // Use setTimeout to ensure the renderable is mounted before focusing.
+  // Focus textarea
   setTimeout(() => {
     textarea.focus();
     renderer.requestRender();
   }, 0);
 
-  // Guard against duplicate submit
   let submitted = false;
 
-  // Key handler for Ctrl+Enter to submit and Esc to cancel
   const keyHandler = (key: KeyEvent) => {
     if (key.name === "escape") {
       key.preventDefault();
@@ -133,7 +164,7 @@ export function createCommentInput(opts: CommentInputOptions): CommentInputOverl
       onCancel();
       return;
     }
-    // Ctrl+S or Ctrl+Enter submits
+    // Ctrl+S submits reply
     if (key.ctrl && (key.name === "s" || key.name === "return")) {
       key.preventDefault();
       key.stopPropagation();
@@ -145,6 +176,13 @@ export function createCommentInput(opts: CommentInputOptions): CommentInputOverl
       } else {
         onCancel();
       }
+      return;
+    }
+    // Ctrl+R resolves thread (only for existing threads)
+    if (key.ctrl && key.name === "r" && hasThread) {
+      key.preventDefault();
+      key.stopPropagation();
+      onResolve();
       return;
     }
   };

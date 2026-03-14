@@ -20,7 +20,7 @@ import {
   type BottomBarComponents,
 } from "./status-bar";
 import { createCommentInput } from "./comment-input";
-import { createThreadExpand } from "./thread-expand";
+// thread-expand removed — merged into comment-input
 import { createSearch } from "./search";
 import { createThreadList } from "./thread-list";
 import { createConfirm } from "./confirm";
@@ -206,6 +206,13 @@ export async function runTui(
         hasUnsavedChanges = true;
         dismissOverlay();
       },
+      onResolve: () => {
+        if (existingThread) {
+          state.resolveThread(existingThread.id);
+          hasUnsavedChanges = true;
+        }
+        dismissOverlay();
+      },
       onCancel: () => {
         dismissOverlay();
       },
@@ -213,29 +220,6 @@ export async function runTui(
     showOverlay(overlay);
   }
 
-  function showThreadExpandOverlay(): void {
-    const thread = state.threadAtLine(state.cursorLine);
-    if (!thread) return;
-
-    const overlay = createThreadExpand({
-      renderer,
-      thread,
-      onResolve: () => {
-        state.resolveThread(thread.id);
-        hasUnsavedChanges = true;
-        dismissOverlay();
-      },
-      onContinue: () => {
-        // Close expand overlay, then open comment input as reply
-        dismissOverlay();
-        showCommentInput();
-      },
-      onClose: () => {
-        dismissOverlay();
-      },
-    });
-    showOverlay(overlay);
-  }
 
   function showSearchOverlay(): void {
     const overlay = createSearch({
@@ -505,13 +489,6 @@ export async function runTui(
           ensureLineMode(pager);
           refreshPager();
           showCommentInput();
-          break;
-        }
-        case "e": {
-          // Expand thread at cursor — needs line mode
-          ensureLineMode(pager);
-          refreshPager();
-          showThreadExpandOverlay();
           break;
         }
         case "l": {
