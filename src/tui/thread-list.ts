@@ -114,6 +114,12 @@ export function createThreadList(opts: ThreadListOptions): ThreadListOverlay {
 
     // Manual key handler — SelectRenderable focus is unreliable
     keyHandler = (key: KeyEvent) => {
+      if (key.name === "q") {
+        key.preventDefault();
+        key.stopPropagation();
+        onCancel();
+        return;
+      }
       if (key.name === "return") {
         key.preventDefault();
         key.stopPropagation();
