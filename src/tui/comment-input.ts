@@ -199,8 +199,8 @@ function createThreadView(
   container.add(textarea);
 
   // --- Hint bar (changes with mode) ---
-  const hintNormal = " NORMAL  c:reply  r:resolve  ?:help  Esc:close";
-  const hintInsert = " INSERT  [Tab] send  [Esc] normal mode";
+  const hintNormal = " c:reply  r:resolve  Esc:close";
+  const hintInsert = " [Tab] send  [Esc] back";
 
   const hint = new TextRenderable(renderer, {
     content: hintInsert,
