@@ -126,14 +126,14 @@ export function createThreadList(opts: ThreadListOptions): ThreadListOverlay {
       if (key.name === "j" || key.name === "down") {
         key.preventDefault();
         key.stopPropagation();
-        select.selectNext();
+        select.moveDown();
         renderer.requestRender();
         return;
       }
       if (key.name === "k" || key.name === "up") {
         key.preventDefault();
         key.stopPropagation();
-        select.selectPrevious();
+        select.moveUp();
         renderer.requestRender();
         return;
       }

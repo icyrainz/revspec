@@ -90,35 +90,27 @@ export class ReviewState {
   }
 
   nextActiveThread(): number | null {
-    const active = this.threads.filter(
-      (t) => t.status === "open" || t.status === "pending"
-    );
-    if (active.length === 0) return null;
+    if (this.threads.length === 0) return null;
 
-    // Look for first active thread after cursor (strictly after)
-    const after = active.filter((t) => t.line > this.cursorLine);
+    const after = this.threads.filter((t) => t.line > this.cursorLine);
     if (after.length > 0) {
       return after.reduce((min, t) => (t.line < min.line ? t : min)).line;
     }
 
-    // Wrap: return the lowest-line active thread
-    return active.reduce((min, t) => (t.line < min.line ? t : min)).line;
+    // Wrap: return the lowest-line thread
+    return this.threads.reduce((min, t) => (t.line < min.line ? t : min)).line;
   }
 
   prevActiveThread(): number | null {
-    const active = this.threads.filter(
-      (t) => t.status === "open" || t.status === "pending"
-    );
-    if (active.length === 0) return null;
+    if (this.threads.length === 0) return null;
 
-    // Look for last active thread before cursor (strictly before)
-    const before = active.filter((t) => t.line < this.cursorLine);
+    const before = this.threads.filter((t) => t.line < this.cursorLine);
     if (before.length > 0) {
       return before.reduce((max, t) => (t.line > max.line ? t : max)).line;
     }
 
-    // Wrap: return the highest-line active thread
-    return active.reduce((max, t) => (t.line > max.line ? t : max)).line;
+    // Wrap: return the highest-line thread
+    return this.threads.reduce((max, t) => (t.line > max.line ? t : max)).line;
   }
 
   canApprove(): boolean {
