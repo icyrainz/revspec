@@ -240,11 +240,16 @@ function createThreadView(
   function appendToConversation(msg: Message): void {
     conversationContent += formatMessage(msg);
     messageText.content = conversationContent;
-    // Scroll to bottom to show new message
+    // Scroll to bottom — need two render cycles for scrollHeight to update
+    renderer.requestRender();
     setTimeout(() => {
       scrollBox.scrollTo(scrollBox.scrollHeight);
       renderer.requestRender();
-    }, 0);
+      setTimeout(() => {
+        scrollBox.scrollTo(scrollBox.scrollHeight);
+        renderer.requestRender();
+      }, 50);
+    }, 50);
   }
 
   const keyHandler = (key: KeyEvent) => {
