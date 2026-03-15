@@ -36,7 +36,7 @@ export const THREAD_INSERT_HINTS: Hint[] = [
 
 export const THREAD_LIST_HINTS: Hint[] = [
   { key: "j/k", action: "navigate" },
-  { key: "Enter", action: "jump" },
+  { key: "y/Enter", action: "jump" },
   { key: "q/Esc", action: "close" },
 ];
 
