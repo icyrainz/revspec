@@ -6,7 +6,10 @@
   "plugins": [
     {
       "name": "revspec",
-      "source": ".",
+      "source": {
+        "source": "url",
+        "url": "https://github.com/icyrainz/revspec.git"
+      },
       "description": "Live spec review with real-time AI feedback",
       "version": "0.7.2"
     }
