@@ -154,8 +154,6 @@ function createThreadView(
     flexShrink: 1,
     scrollY: true,
     scrollX: false,
-    stickyScroll: true,
-    stickyStart: "bottom",
   });
 
   let conversationContent = "";
@@ -232,13 +230,21 @@ function createThreadView(
     renderer.requestRender();
   }
 
-  // Start in insert mode
-  setTimeout(() => { textarea.focus(); renderer.requestRender(); }, 0);
+  // Start in insert mode, scroll conversation to bottom
+  setTimeout(() => {
+    scrollBox.scrollTo(scrollBox.scrollHeight);
+    textarea.focus();
+    renderer.requestRender();
+  }, 0);
 
   function appendToConversation(msg: Message): void {
     conversationContent += formatMessage(msg);
     messageText.content = conversationContent;
-    renderer.requestRender();
+    // Scroll to bottom to show new message
+    setTimeout(() => {
+      scrollBox.scrollTo(scrollBox.scrollHeight);
+      renderer.requestRender();
+    }, 0);
   }
 
   const keyHandler = (key: KeyEvent) => {
@@ -265,9 +271,6 @@ function createThreadView(
     }
 
     // --- NORMAL MODE (textarea blurred, all keys are ours) ---
-    if (process.env.REVSPEC_DEBUG === "1") {
-      process.stderr.write(`[comment-input NORMAL] key=${key.name} ctrl=${key.ctrl}\n`);
-    }
     key.preventDefault(); key.stopPropagation();
 
     switch (key.name) {
