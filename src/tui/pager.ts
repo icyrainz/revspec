@@ -30,7 +30,7 @@ function threadHint(thread: Thread): string {
  * Build plain text line-mode content (for commenting).
  * Each line: cursor marker + lineNum + content + thread indicator + hint.
  */
-export function buildPagerContent(state: ReviewState, searchQuery?: string | null): string {
+export function buildPagerContent(state: ReviewState, searchQuery?: string | null, unreadThreadIds?: ReadonlySet<string>): string {
   const lines: string[] = [];
 
   for (let i = 0; i < state.specLines.length; i++) {
@@ -51,7 +51,8 @@ export function buildPagerContent(state: ReviewState, searchQuery?: string | nul
     if (thread) {
       const icon = STATUS_ICONS[thread.status];
       const hint = threadHint(thread);
-      line += `  ${icon} ${hint}`;
+      const unreadPrefix = unreadThreadIds && unreadThreadIds.has(thread.id) ? "[+] " : "";
+      line += `  ${unreadPrefix}${icon} ${hint}`;
     }
 
     lines.push(line);

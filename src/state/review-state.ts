@@ -4,7 +4,11 @@ export class ReviewState {
   specLines: string[];
   threads: Thread[];
   cursorLine: number = 1;
-  private unreadThreadIds: Set<string> = new Set();
+  private _unreadThreadIds: Set<string> = new Set();
+
+  get unreadThreadIds(): ReadonlySet<string> {
+    return this._unreadThreadIds;
+  }
 
   constructor(specLines: string[], threads: Thread[]) {
     this.specLines = specLines;
@@ -138,30 +142,30 @@ export class ReviewState {
     if (ts !== undefined) msg.ts = ts;
     thread.messages.push(msg);
     thread.status = "pending";
-    this.unreadThreadIds.add(threadId);
+    this._unreadThreadIds.add(threadId);
   }
 
   unreadCount(): number {
-    return this.unreadThreadIds.size;
+    return this._unreadThreadIds.size;
   }
 
   isThreadUnread(threadId: string): boolean {
-    return this.unreadThreadIds.has(threadId);
+    return this._unreadThreadIds.has(threadId);
   }
 
   markRead(threadId: string): void {
-    this.unreadThreadIds.delete(threadId);
+    this._unreadThreadIds.delete(threadId);
   }
 
   nextUnreadThread(): number | null {
-    const unreadThreads = this.threads.filter((t) => this.unreadThreadIds.has(t.id));
+    const unreadThreads = this.threads.filter((t) => this._unreadThreadIds.has(t.id));
     const after = unreadThreads.find((t) => t.line > this.cursorLine);
     if (after) return after.line;
     return unreadThreads.length > 0 ? unreadThreads[0].line : null;
   }
 
   prevUnreadThread(): number | null {
-    const unreadThreads = this.threads.filter((t) => this.unreadThreadIds.has(t.id));
+    const unreadThreads = this.threads.filter((t) => this._unreadThreadIds.has(t.id));
     const before = [...unreadThreads].reverse().find((t) => t.line < this.cursorLine);
     if (before) return before.line;
     return unreadThreads.length > 0 ? unreadThreads[unreadThreads.length - 1].line : null;

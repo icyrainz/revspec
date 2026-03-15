@@ -1,15 +1,18 @@
-import { readFileSync } from "fs";
+import { readFileSync, statSync, existsSync } from "fs";
+import { dirname, basename } from "path";
 import {
   createCliRenderer,
   BoxRenderable,
   type CliRenderer,
   type KeyEvent,
 } from "@opentui/core";
-import { readReviewFile, readDraftFile } from "../protocol/read";
-import { writeDraftFile } from "../protocol/write";
-import { mergeDraftIntoReview } from "../protocol/merge";
+import { readReviewFile } from "../protocol/read";
+import { writeReviewFile } from "../protocol/write";
+import { appendEvent, readEventsFromOffset, replayEventsToThreads } from "../protocol/live-events";
+import { mergeJsonlIntoReview } from "../protocol/live-merge";
 import type { Thread } from "../protocol/types";
 import { ReviewState } from "../state/review-state";
+import { createLiveWatcher, type LiveWatcher } from "./live-watcher";
 import { buildPagerContent, createPager, togglePagerMode, ensureLineMode, type PagerComponents } from "./pager";
 import {
   buildTopBarText,
@@ -35,9 +38,8 @@ export async function runTui(
   const specContent = readFileSync(specFile, "utf8");
   const specLines = specContent.split("\n");
 
-  // 2. Load existing review + draft, merge threads
+  // 2. Load existing review, merge threads
   const existingReview = readReviewFile(reviewPath);
-  const existingDraft = readDraftFile(draftPath);
 
   let threads: Thread[] = [];
   if (existingReview) {
@@ -46,23 +48,54 @@ export async function runTui(
       messages: [...t.messages],
     }));
   }
-  if (existingDraft && existingDraft.threads) {
-    // Merge draft threads into review threads
-    const merged = mergeDraftIntoReview(existingReview, existingDraft, specFile);
-    threads = merged.threads;
-  }
 
   // 3. Create ReviewState
   const state = new ReviewState(specLines, threads);
 
-  // 4. Create renderer
+  // 4. Derive JSONL path and set up live protocol
+  const dir = dirname(specFile);
+  const base = basename(specFile, ".md");
+  const jsonlPath = `${dir}/${base}.review.live.jsonl`;
+  const reviewPathForMerge = `${dir}/${base}.review.json`;
+
+  // Crash recovery: replay JSONL events if file exists
+  if (existsSync(jsonlPath)) {
+    const { events } = readEventsFromOffset(jsonlPath, 0);
+    const replayedThreads = replayEventsToThreads(events);
+    for (const rt of replayedThreads) {
+      const existing = state.threads.find(t => t.id === rt.id);
+      if (!existing) {
+        state.threads.push(rt);
+      } else {
+        existing.messages = rt.messages;
+        existing.status = rt.status;
+      }
+    }
+  }
+
+  // Create and start the live watcher
+  const liveWatcher: LiveWatcher = createLiveWatcher(jsonlPath, (ownerEvents) => {
+    for (const event of ownerEvents) {
+      if (event.type === "reply" && event.threadId && event.text) {
+        state.addOwnerReply(event.threadId, event.text, event.ts);
+      }
+    }
+    refreshPager();
+  });
+  liveWatcher.start();
+
+  // Record spec mtime for mutation guard
+  let specMtime = statSync(specFile).mtimeMs;
+  let specMtimeChanged = false;
+
+  // 5. Create renderer
   const renderer = await createCliRenderer({
     useAlternateScreen: true,
     exitOnCtrlC: false,
     useMouse: false,
   });
 
-  // 5. Build layout: top bar, pager, bottom bar in a column
+  // 6. Build layout: top bar, pager, bottom bar in a column
   const rootBox = new BoxRenderable(renderer, {
     width: "100%",
     height: "100%",
@@ -79,14 +112,22 @@ export async function runTui(
 
   renderer.root.add(rootBox);
 
-  // 6. Initial render
+  // 7. Initial render
   function refreshPager(): void {
+    // Spec mutation guard
+    try {
+      const currentMtime = statSync(specFile).mtimeMs;
+      if (currentMtime !== specMtime) {
+        specMtimeChanged = true;
+      }
+    } catch {}
+
     if (pager.mode === "line") {
-      pager.lineNode.content = buildPagerContent(state, searchQuery);
+      pager.lineNode.content = buildPagerContent(state, searchQuery, state.unreadThreadIds);
     } else {
       pager.markdownNode.content = state.specLines.join("\n");
     }
-    topBar.bar.content = buildTopBarText(specFile, state);
+    topBar.bar.content = buildTopBarText(specFile, state, state.unreadCount(), specMtimeChanged);
     bottomBar.bar.content = buildBottomBarText(commandBuffer, pager.mode);
     renderer.requestRender();
   }
@@ -97,10 +138,7 @@ export async function runTui(
   // Command mode state
   let commandBuffer: string | null = null;
 
-  // Track unsaved changes
-  let hasUnsavedChanges = false;
-
-  // Bracket-pending state for ]t / [t navigation
+  // Bracket-pending state for ]t / [t / ]r / [r navigation
   let bracketPending: "]" | "[" | null = null;
   let bracketPendingTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -135,10 +173,14 @@ export async function runTui(
     renderer.requestRender();
   }
 
-  // Helper: save draft file
-  function saveDraft(): void {
-    const draft = state.toDraft();
-    writeDraftFile(draftPath, draft);
+  // Helper: merge JSONL into review JSON and clean up
+  function mergeAndExit(resolve: () => void): void {
+    const existingReviewForMerge = readReviewFile(reviewPathForMerge);
+    const merged = mergeJsonlIntoReview(jsonlPath, existingReviewForMerge, specFile);
+    writeReviewFile(reviewPathForMerge, merged);
+    liveWatcher.stop();
+    renderer.destroy();
+    resolve();
   }
 
   // Helper: scroll pager to ensure cursor line is visible
@@ -162,43 +204,40 @@ export async function runTui(
   }
 
   // Process command buffer input
-  function processCommand(cmd: string, resolve: () => void): boolean {
+  // Returns: "exit" to exit (caller should destroy+resolve), "merged" if already handled, "stay" to keep running
+  function processCommand(cmd: string, resolve: () => void): "exit" | "merged" | "stay" {
     if (cmd === "w") {
-      saveDraft();
-      hasUnsavedChanges = false;
-      // Show "saved" feedback briefly
-      bottomBar.bar.content = " \u2714 saved";
+      // Changes are auto-saved via JSONL
+      bottomBar.bar.content = " Changes auto-saved via JSONL";
       renderer.requestRender();
       setTimeout(() => {
         refreshPager();
       }, 1200);
-      return false; // don't exit
+      return "stay";
     }
-    if (cmd === "q") {
-      // Block if there are unsaved changes
-      if (hasUnsavedChanges) {
-        bottomBar.bar.content = " \u26a0  Unsaved changes — use :wq to save and quit, or :q! to discard";
-        renderer.requestRender();
-        setTimeout(() => { refreshPager(); }, 2000);
-        return false;
-      }
-      return true; // exit (already saved or no changes)
-    }
-    if (cmd === "wq") {
-      saveDraft();
-      hasUnsavedChanges = false;
-      return true; // save and exit
+    if (cmd === "q" || cmd === "wq") {
+      // Merge JSONL -> JSON and exit (mergeAndExit handles destroy+resolve)
+      mergeAndExit(resolve);
+      return "merged";
     }
     if (cmd === "q!") {
-      return true; // exit without saving
+      // Exit without merging
+      liveWatcher.stop();
+      return "exit";
     }
-    return false; // unknown command, ignore
+    return "stay"; // unknown command, ignore
   }
 
   // --- Overlay launchers ---
 
   function showCommentInput(): void {
     const existingThread = state.threadAtLine(state.cursorLine);
+
+    // Mark thread as read when opening
+    if (existingThread) {
+      state.markRead(existingThread.id);
+    }
+
     const overlay = createCommentInput({
       renderer,
       line: state.cursorLine,
@@ -206,16 +245,22 @@ export async function runTui(
       onSubmit: (text: string) => {
         if (existingThread) {
           state.replyToThread(existingThread.id, text);
+          appendEvent(jsonlPath, { type: "reply", threadId: existingThread.id, author: "reviewer", text, ts: Date.now() });
         } else {
           state.addComment(state.cursorLine, text);
+          // Get the thread that was just created to use its ID
+          const newThread = state.threadAtLine(state.cursorLine);
+          if (newThread) {
+            appendEvent(jsonlPath, { type: "comment", threadId: newThread.id, line: state.cursorLine, author: "reviewer", text, ts: Date.now() });
+          }
         }
-        hasUnsavedChanges = true;
         dismissOverlay();
       },
       onResolve: () => {
         if (existingThread) {
+          const wasResolved = existingThread.status === "resolved";
           state.resolveThread(existingThread.id);
-          hasUnsavedChanges = true;
+          appendEvent(jsonlPath, { type: wasResolved ? "unresolve" : "resolve", threadId: existingThread.id, author: "reviewer", ts: Date.now() });
         }
         dismissOverlay();
       },
@@ -295,7 +340,7 @@ export async function runTui(
   refreshPager();
   renderer.start();
 
-  // 7. Set up keybinding handler
+  // 8. Set up keybinding handler
   return new Promise<void>((resolve) => {
     renderer.keyInput.on("keypress", (key: KeyEvent) => {
       // If an overlay is active, only handle Ctrl+C to force dismiss.
@@ -315,13 +360,17 @@ export async function runTui(
         if (key.name === "return") {
           const cmd = commandBuffer;
           commandBuffer = null;
-          const shouldExit = processCommand(cmd, resolve);
-          if (shouldExit) {
+          const result = processCommand(cmd, resolve);
+          if (result === "exit") {
             renderer.destroy();
             resolve();
             return;
           }
-          // Don't refreshPager here — processCommand handles its own bar updates
+          if (result === "merged") {
+            // mergeAndExit already called destroy+resolve
+            return;
+          }
+          // "stay" — don't refreshPager here, processCommand handles its own bar updates
           // (e.g., :w shows "saved" briefly before refreshing via setTimeout)
           return;
         }
@@ -347,13 +396,9 @@ export async function runTui(
         return;
       }
 
-      // Ctrl+C to exit
+      // Ctrl+C to exit — merge and quit
       if (key.ctrl && key.name === "c") {
-        if (hasUnsavedChanges) {
-          saveDraft();
-        }
-        renderer.destroy();
-        resolve();
+        mergeAndExit(resolve);
         return;
       }
 
@@ -419,16 +464,16 @@ export async function runTui(
               // Second d within 500ms — execute delete
               clearTimeout(deletePendingTimer);
               deletePendingTimer = null;
-              const hadHumanMsg = thread.messages.some((m) => m.author === "human");
-              if (hadHumanMsg) {
+              const hadReviewerMsg = thread.messages.some((m) => m.author === "reviewer");
+              if (hadReviewerMsg) {
                 state.deleteLastDraftMessage(thread.id);
-                hasUnsavedChanges = true;
+                appendEvent(jsonlPath, { type: "delete", threadId: thread.id, author: "reviewer", ts: Date.now() });
                 refreshPager();
                 bottomBar.bar.content = " \u2714 Deleted draft comment";
                 renderer.requestRender();
                 setTimeout(() => { refreshPager(); }, 1500);
               } else {
-                bottomBar.bar.content = " No human message to delete";
+                bottomBar.bar.content = " No reviewer message to delete";
                 renderer.requestRender();
                 setTimeout(() => { refreshPager(); }, 1500);
               }
@@ -494,12 +539,12 @@ export async function runTui(
           const wasMarkdown = pager.mode === "markdown";
           togglePagerMode(pager);
           if (wasMarkdown) {
-            // Markdown → Line: sync scroll position to cursor
+            // Markdown -> Line: sync scroll position to cursor
             state.cursorLine = Math.max(1, pager.scrollBox.scrollTop + 1);
             refreshPager();
             ensureCursorVisible();
           } else {
-            // Line → Markdown: approximate scroll to cursor position
+            // Line -> Markdown: approximate scroll to cursor position
             refreshPager();
             pager.scrollBox.scrollTo(state.cursorLine - 1);
             renderer.requestRender();
@@ -529,7 +574,7 @@ export async function runTui(
             if (thread) {
               const wasResolved = thread.status === "resolved";
               state.resolveThread(thread.id);
-              hasUnsavedChanges = true;
+              appendEvent(jsonlPath, { type: wasResolved ? "unresolve" : "resolve", threadId: thread.id, author: "reviewer", ts: Date.now() });
               refreshPager();
               const msg = wasResolved
                 ? ` \u21a9 Reopened thread #${thread.id}`
@@ -541,8 +586,11 @@ export async function runTui(
           } else {
             // Shift+R = resolve all pending
             const { pending } = state.activeThreadCount();
+            const pendingThreads = state.threads.filter(t => t.status === "pending");
             state.resolveAllPending();
-            hasUnsavedChanges = true;
+            for (const t of pendingThreads) {
+              appendEvent(jsonlPath, { type: "resolve", threadId: t.id, author: "reviewer", ts: Date.now() });
+            }
             refreshPager();
             bottomBar.bar.content = ` \u2714 Resolved ${pending} pending thread(s)`;
             renderer.requestRender();
@@ -593,9 +641,8 @@ export async function runTui(
               message: "Approve spec and proceed to implementation? [y/n]",
               onConfirm: () => {
                 dismissOverlay();
-                writeDraftFile(draftPath, { approved: true });
-                renderer.destroy();
-                resolve();
+                appendEvent(jsonlPath, { type: "approve", author: "reviewer", ts: Date.now() });
+                mergeAndExit(resolve);
               },
               onCancel: () => {
                 dismissOverlay();
@@ -620,7 +667,7 @@ export async function runTui(
           break;
         }
         default: {
-          // Handle bracket-pending sequences (]t / [t)
+          // Handle bracket-pending sequences (]t / [t / ]r / [r)
           if (bracketPending !== null) {
             const pending = bracketPending;
             bracketPending = null;
@@ -637,6 +684,22 @@ export async function runTui(
                 const prev = state.prevActiveThread();
                 if (prev !== null) {
                   state.cursorLine = prev;
+                  ensureCursorVisible();
+                  refreshPager();
+                }
+              }
+            } else if (key.name === "r" || key.sequence === "r") {
+              if (pending === "]") {
+                const nextLine = state.nextUnreadThread();
+                if (nextLine !== null) {
+                  state.cursorLine = nextLine;
+                  ensureCursorVisible();
+                  refreshPager();
+                }
+              } else {
+                const prevLine = state.prevUnreadThread();
+                if (prevLine !== null) {
+                  state.cursorLine = prevLine;
                   ensureCursorVisible();
                   refreshPager();
                 }

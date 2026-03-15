@@ -16,7 +16,9 @@ export interface BottomBarComponents {
  */
 export function buildTopBarText(
   specFile: string,
-  state: ReviewState
+  state: ReviewState,
+  unreadCount?: number,
+  specChanged?: boolean
 ): string {
   const name = basename(specFile);
   const { open, pending } = state.activeThreadCount();
@@ -25,7 +27,15 @@ export function buildTopBarText(
   if (pending > 0) parts.push(`${pending} pending`);
   const threadSummary =
     parts.length > 0 ? `Threads: ${parts.join(", ")}` : "No active threads";
-  return ` ${name}  |  ${threadSummary}  |  L${state.cursorLine}/${state.lineCount}`;
+  let result = ` ${name}  |  ${threadSummary}`;
+  if (unreadCount && unreadCount > 0) {
+    result += ` | ${unreadCount} new repl${unreadCount === 1 ? "y" : "ies"}`;
+  }
+  if (specChanged) {
+    result += ` | !! Spec changed externally`;
+  }
+  result += `  |  L${state.cursorLine}/${state.lineCount}`;
+  return result;
 }
 
 /**
