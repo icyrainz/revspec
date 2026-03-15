@@ -8,7 +8,7 @@ import {
   parseColor,
   type CliRenderer,
 } from "@opentui/core";
-import { theme, STATUS_ICONS } from "./theme";
+import { theme } from "./theme";
 
 const MAX_HINT_LENGTH = 40;
 
