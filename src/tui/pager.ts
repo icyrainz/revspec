@@ -61,10 +61,10 @@ export function buildPagerContent(state: ReviewState, searchQuery?: string | nul
 
     let line = `${prefix}${indicator}${padLineNum(lineNum)}  ${specText}`;
 
-    // Thread hint on the right (truncated preview of last message)
+    // Thread hint on the right — visually distinct from spec content
     if (thread) {
       const hint = threadHint(thread);
-      if (hint) line += `  ${hint}`;
+      if (hint) line += `  \u2502 ${hint}`;  // │ vertical bar separator
     }
 
     lines.push(line);
