@@ -235,8 +235,8 @@ function processNewEvents(
     return { approved: false, output: "", newOffset: offset };
   }
 
-  // Save new offset
-  atomicWriteFileSync(offsetPath, String(newOffset));
+  // Save new offset (preserve submit_ts if present)
+  atomicWriteFileSync(offsetPath, lastSubmitTs ? `${newOffset}\n${lastSubmitTs}` : String(newOffset));
 
   // Check for approve event
   const hasApprove = events.some((e) => e.type === "approve");

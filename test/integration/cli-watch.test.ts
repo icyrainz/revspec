@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from "bun:test";
-import { mkdtempSync, rmSync, writeFileSync } from "fs";
+import { mkdtempSync, rmSync, writeFileSync, readFileSync } from "fs";
 import { join, resolve } from "path";
 import { tmpdir } from "os";
 import { appendEvent, readEventsFromOffset } from "../../src/protocol/live-events";
@@ -288,6 +288,35 @@ describe("revspec watch", () => {
     expect(result2.stdout).toContain("also fix this");
   });
 
+  it("submit_ts is preserved when non-actionable events follow a submit", async () => {
+    tmpDir = setupTempDir();
+    const { specPath, jsonlPath } = createSpecWithJsonl(tmpDir);
+    const offsetPath = join(tmpDir, "spec.review.offset");
+
+    appendEvent(jsonlPath, { type: "comment", threadId: "x1", line: 3, author: "reviewer", text: "fix this", ts: 1 });
+    appendEvent(jsonlPath, { type: "resolve", threadId: "x1", author: "reviewer", ts: 2 });
+    appendEvent(jsonlPath, { type: "submit", author: "reviewer", ts: 3 });
+
+    // First watch — consumes the submit, records submit_ts=3
+    const result1 = await runCli(["watch", specPath]);
+    expect(result1.stdout).toContain("=== Submit: Rewrite Requested ===");
+
+    // Non-actionable event arrives (e.g. unresolve) — must not clear submit_ts
+    appendEvent(jsonlPath, { type: "unresolve", threadId: "x1", author: "reviewer", ts: 10 });
+    const result2 = await runCli(["watch", specPath]);
+    expect(result2.stdout.trim()).toBe("");
+
+    // Verify submit_ts is still in the offset file
+    const offsetContent = readFileSync(offsetPath, "utf8").trim();
+    const lines = offsetContent.split("\n");
+    expect(lines.length).toBe(2);
+    expect(lines[1]).toBe("3");
+
+    // Third watch — should still not re-output the submit
+    const result3 = await runCli(["watch", specPath]);
+    expect(result3.stdout.trim()).toBe("");
+  });
+
   it("submit takes priority over session-end in same batch", async () => {
     tmpDir = setupTempDir();
     const { specPath, jsonlPath } = createSpecWithJsonl(tmpDir);
@@ -299,7 +328,48 @@ describe("revspec watch", () => {
 
     const result = await runCli(["watch", specPath]);
 
-    expect(result.stdout).toContain("Submit: Rewrite Requested");
+    expect(result.stdout).toContain("=== Submit: Rewrite Requested ===");
     expect(result.stdout).not.toContain("Session ended");
+  });
+
+  it("approve takes priority over submit in same batch", async () => {
+    tmpDir = setupTempDir();
+    const { specPath, jsonlPath } = createSpecWithJsonl(tmpDir);
+
+    appendEvent(jsonlPath, { type: "comment", threadId: "x1", line: 1, author: "reviewer", text: "change this", ts: 1 });
+    appendEvent(jsonlPath, { type: "resolve", threadId: "x1", author: "reviewer", ts: 2 });
+    appendEvent(jsonlPath, { type: "submit", author: "reviewer", ts: 3 });
+    appendEvent(jsonlPath, { type: "approve", author: "reviewer", ts: 4 });
+
+    const result = await runCli(["watch", specPath]);
+
+    expect(result.stdout).toContain("Review approved");
+    expect(result.stdout).not.toContain("Submit: Rewrite Requested");
+  });
+
+  it("outputs session-end message", async () => {
+    tmpDir = setupTempDir();
+    const { specPath, jsonlPath } = createSpecWithJsonl(tmpDir);
+
+    appendEvent(jsonlPath, { type: "session-end", author: "reviewer", ts: 1 });
+
+    const result = await runCli(["watch", specPath]);
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("Session ended. Reviewer exited revspec.");
+  });
+
+  it("outputs submit with no resolved threads", async () => {
+    tmpDir = setupTempDir();
+    const { specPath, jsonlPath } = createSpecWithJsonl(tmpDir);
+
+    // Comment without resolve, then submit
+    appendEvent(jsonlPath, { type: "comment", threadId: "x1", line: 1, author: "reviewer", text: "thoughts?", ts: 1 });
+    appendEvent(jsonlPath, { type: "submit", author: "reviewer", ts: 2 });
+
+    const result = await runCli(["watch", specPath]);
+
+    expect(result.stdout).toContain("=== Submit: Rewrite Requested ===");
+    expect(result.stdout).not.toContain("Resolved threads:");
   });
 });
