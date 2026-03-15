@@ -21,6 +21,23 @@ git clone https://github.com/icyrainz/revspec.git
 cd revspec && bun install && bun link
 ```
 
+### Claude Code plugin
+
+Install the `/revspec` skill and command for Claude Code:
+
+```bash
+/plugin marketplace add icyrainz/revspec
+/plugin install revspec
+```
+
+Or manually (symlinks, stays updated with repo):
+
+```bash
+mkdir -p ~/.claude/skills ~/.claude/commands
+ln -sfn /path/to/revspec/skills/revspec ~/.claude/skills/revspec
+ln -sfn /path/to/revspec/commands/revspec.md ~/.claude/commands/revspec.md
+```
+
 ## Usage
 
 ```bash
@@ -136,28 +153,6 @@ Sends an AI reply that appears instantly in the reviewer's TUI.
 7. TUI reloads with new spec → reviewer continues reviewing
 8. Repeat 3-7 until A (approve)
 ```
-
-### Claude Code plugin
-
-Revspec includes a Claude Code plugin with a `/revspec` skill and command.
-
-**Install via marketplace:**
-
-```bash
-/plugin marketplace add icyrainz/revspec
-/plugin install revspec
-```
-
-**Or install manually (symlinks, stays updated with repo):**
-
-```bash
-git clone https://github.com/icyrainz/revspec.git
-mkdir -p ~/.claude/skills ~/.claude/commands
-ln -sfn "$(pwd)/revspec/skills/revspec" ~/.claude/skills/revspec
-ln -sfn "$(pwd)/revspec/commands/revspec.md" ~/.claude/commands/revspec.md
-```
-
-Then use `/revspec` or `/revspec <file>` in Claude Code after generating a spec.
 
 ## Testing
 
