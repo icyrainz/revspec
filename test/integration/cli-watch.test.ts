@@ -245,6 +245,7 @@ describe("revspec watch", () => {
 
     // Second watch — should NOT re-output (submit_ts matches)
     const result2 = await runCli(["watch", specPath]);
+    expect(result2.exitCode).toBe(0);
     expect(result2.stdout.trim()).toBe("");
   });
 
@@ -283,9 +284,11 @@ describe("revspec watch", () => {
     appendEvent(jsonlPath, { type: "resolve", threadId: "x2", author: "reviewer", ts: 101 });
     appendEvent(jsonlPath, { type: "submit", author: "reviewer", ts: 102 });
 
-    // Second watch picks up round 2 comment first
+    // Second watch picks up round 2 events — should not contain round 1 content
     const result2 = await runCli(["watch", specPath]);
+    expect(result2.exitCode).toBe(0);
     expect(result2.stdout).toContain("also fix this");
+    expect(result2.stdout).not.toContain("fix this\n");
   });
 
   it("submit_ts is preserved when non-actionable events follow a submit", async () => {
@@ -304,16 +307,20 @@ describe("revspec watch", () => {
     // Non-actionable event arrives (e.g. unresolve) — must not clear submit_ts
     appendEvent(jsonlPath, { type: "unresolve", threadId: "x1", author: "reviewer", ts: 10 });
     const result2 = await runCli(["watch", specPath]);
+    expect(result2.exitCode).toBe(0);
     expect(result2.stdout.trim()).toBe("");
 
-    // Verify submit_ts is still in the offset file
+    // Verify offset file: offset advanced past unresolve AND submit_ts preserved
     const offsetContent = readFileSync(offsetPath, "utf8").trim();
     const lines = offsetContent.split("\n");
     expect(lines.length).toBe(2);
+    const byteOffset = parseInt(lines[0], 10);
+    expect(byteOffset).toBeGreaterThan(0);
     expect(lines[1]).toBe("3");
 
     // Third watch — should still not re-output the submit
     const result3 = await runCli(["watch", specPath]);
+    expect(result3.exitCode).toBe(0);
     expect(result3.stdout.trim()).toBe("");
   });
 
