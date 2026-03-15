@@ -17,6 +17,7 @@ import { buildPagerNodes, createPager, countExtraVisualLines, type PagerComponen
 import {
   buildTopBar,
   buildBottomBar,
+  setBottomBarMessage,
   createTopBar,
   createBottomBar,
   type TopBarComponents,
@@ -222,7 +223,7 @@ export async function runTui(
     if (cmd === "w") {
       // Merge JSONL -> JSON, stay open
       doMerge();
-      bottomBar.text.content = " \u2714 Merged to review JSON";
+      setBottomBarMessage(bottomBar, " \u2714 Merged to review JSON");
       renderer.requestRender();
       setTimeout(() => { refreshPager(); }, 1200);
       return "stay";
@@ -235,7 +236,7 @@ export async function runTui(
     if (cmd === "q") {
       // Exit only if merged (no pending changes)
       if (hasPendingChanges()) {
-        bottomBar.text.content = " Unmerged changes. Use :w to save or :q! to discard";
+        setBottomBarMessage(bottomBar, " Unmerged changes. Use :w to save or :q! to discard");
         renderer.requestRender();
         setTimeout(() => { refreshPager(); }, 2000);
         return "stay";
@@ -481,7 +482,7 @@ export async function runTui(
       if (!action) {
         const p = keybinds.pending();
         if (p) {
-          bottomBar.text.content = ` ${p}`;
+          setBottomBarMessage(bottomBar, ` ${p}`);
           renderer.requestRender();
         }
         return;
@@ -534,7 +535,7 @@ export async function runTui(
               ensureCursorVisible();
             }
           } else {
-            bottomBar.text.content = " No active search \u2014 use / to search";
+            setBottomBarMessage(bottomBar, " No active search \u2014 use / to search");
             renderer.requestRender();
             setTimeout(() => { refreshPager(); }, 1500);
           }
@@ -548,7 +549,7 @@ export async function runTui(
               ensureCursorVisible();
             }
           } else {
-            bottomBar.text.content = " No active search \u2014 use / to search";
+            setBottomBarMessage(bottomBar, " No active search \u2014 use / to search");
             renderer.requestRender();
             setTimeout(() => { refreshPager(); }, 1500);
           }
@@ -571,7 +572,7 @@ export async function runTui(
             const msg = wasResolved
               ? ` \u21a9 Reopened thread #${thread.id}`
               : ` \u2714 Resolved thread #${thread.id}`;
-            bottomBar.text.content = msg;
+            setBottomBarMessage(bottomBar, msg);
             renderer.requestRender();
             setTimeout(() => { refreshPager(); }, 1500);
           }
@@ -585,7 +586,7 @@ export async function runTui(
             appendEvent(jsonlPath, { type: "resolve", threadId: t.id, author: "reviewer", ts: Date.now() });
           }
           refreshPager();
-          bottomBar.text.content = ` \u2714 Resolved ${pending} pending thread(s)`;
+          setBottomBarMessage(bottomBar, ` \u2714 Resolved ${pending} pending thread(s)`);
           renderer.requestRender();
           setTimeout(() => { refreshPager(); }, 1500);
           break;
@@ -598,11 +599,11 @@ export async function runTui(
             state.deleteLastDraftMessage(thread.id);
             appendEvent(jsonlPath, { type: "delete", threadId: thread.id, author: "reviewer", ts: Date.now() });
             refreshPager();
-            bottomBar.text.content = " \u2714 Deleted draft comment";
+            setBottomBarMessage(bottomBar, " \u2714 Deleted draft comment");
             renderer.requestRender();
             setTimeout(() => { refreshPager(); }, 1500);
           } else {
-            bottomBar.text.content = " No reviewer message to delete";
+            setBottomBarMessage(bottomBar, " No reviewer message to delete");
             renderer.requestRender();
             setTimeout(() => { refreshPager(); }, 1500);
           }
@@ -629,7 +630,7 @@ export async function runTui(
             const msg = total === 0
               ? "No threads to approve"
               : `${total} thread${total !== 1 ? "s" : ""} still open/pending`;
-            bottomBar.text.content = ` \u26a0  ${msg}`;
+            setBottomBarMessage(bottomBar, ` \u26a0  ${msg}`);
             renderer.requestRender();
             setTimeout(() => { refreshPager(); }, 2000);
           }

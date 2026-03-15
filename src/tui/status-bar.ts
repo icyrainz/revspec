@@ -65,6 +65,15 @@ export function buildTopBar(
 }
 
 /**
+ * Set a transient message on the bottom bar (using TextNodes, not .content).
+ */
+export function setBottomBarMessage(bar: BottomBarComponents, message: string, fg?: string): void {
+  const t = bar.text;
+  t.clear();
+  t.add(TextNodeRenderable.fromString(message, { fg: fg ?? theme.text }));
+}
+
+/**
  * Build the bottom bar with styled TextNodes.
  */
 export function buildBottomBar(bar: BottomBarComponents, commandBuffer: string | null, hasThread?: boolean): void {

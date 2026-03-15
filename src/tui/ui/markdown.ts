@@ -52,8 +52,8 @@ export function parseInlineMarkdown(text: string): StyledSegment[] {
       // _italic_
       segments.push({ text: match[6], attributes: TextAttributes.ITALIC });
     } else if (match[7] !== undefined) {
-      // ~~strikethrough~~ — dim as fallback (terminal strikethrough unreliable)
-      segments.push({ text: match[7], attributes: TextAttributes.DIM });
+      // ~~strikethrough~~ — use actual terminal strikethrough + dim
+      segments.push({ text: match[7], fg: theme.textDim, attributes: TextAttributes.STRIKETHROUGH });
     } else if (match[8] !== undefined) {
       // [link text](url) — show text in blue + underline
       segments.push({ text: match[8], fg: theme.blue, attributes: TextAttributes.UNDERLINE });
