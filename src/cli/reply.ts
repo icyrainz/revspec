@@ -42,12 +42,15 @@ export function runReply(
     process.exit(1);
   }
 
+  // Clean up shell escaping artifacts (e.g., \! from bash history expansion)
+  const cleanText = text.replace(/\\!/g, "!");
+
   // Append reply event
   appendEvent(jsonlPath, {
     type: "reply",
     threadId,
     author: "owner",
-    text,
+    text: cleanText,
     ts: Date.now(),
   });
 }
