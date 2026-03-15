@@ -2,11 +2,11 @@ import { describe, it, expect, beforeEach, afterEach } from "bun:test"
 import { mkdtempSync, rmSync, writeFileSync, existsSync, readFileSync } from "fs"
 import { join, resolve } from "path"
 import { tmpdir } from "os"
-import { appendEvent, readEventsFromOffset, replayEventsToThreads } from "../src/protocol/live-events"
-import { mergeJsonlIntoReview } from "../src/protocol/live-merge"
-import { ReviewState } from "../src/state/review-state"
+import { appendEvent, readEventsFromOffset, replayEventsToThreads } from "../../src/protocol/live-events"
+import { mergeJsonlIntoReview } from "../../src/protocol/live-merge"
+import { ReviewState } from "../../src/state/review-state"
 
-const CLI = resolve(import.meta.dir, "../bin/revspec.ts")
+const CLI = resolve(import.meta.dir, "../../bin/revspec.ts")
 
 interface SpawnResult {
   exitCode: number

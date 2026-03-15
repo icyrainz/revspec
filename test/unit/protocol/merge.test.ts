@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
-import { mergeDraftIntoReview } from "../../src/protocol/merge";
-import type { ReviewFile, DraftFile, Thread } from "../../src/protocol/types";
+import { mergeDraftIntoReview } from "../../../src/protocol/merge";
+import type { ReviewFile, DraftFile, Thread } from "../../../src/protocol/types";
 
 const baseReview: ReviewFile = {
   file: "spec.md",

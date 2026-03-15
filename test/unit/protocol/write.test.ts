@@ -1,8 +1,8 @@
 import { describe, expect, it } from "bun:test";
 import { mkdtempSync, rmSync, readFileSync } from "fs";
 import { join } from "path";
-import { writeReviewFile, writeDraftFile } from "../../src/protocol/write";
-import type { ReviewFile, DraftFile } from "../../src/protocol/types";
+import { writeReviewFile, writeDraftFile } from "../../../src/protocol/write";
+import type { ReviewFile, DraftFile } from "../../../src/protocol/types";
 
 function tmpDir() {
   return mkdtempSync("/tmp/revspec-test-");

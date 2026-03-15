@@ -3,7 +3,9 @@
 - Tech: Bun + TypeScript + @opentui/core
 - npm: `revspec` | GitHub: icyrainz/revspec
 - Run: `bun run bin/revspec.ts <file.md>`
-- Test: `bun test`
+- Test: `bun run test` (~3s, excludes E2E)
+- E2E: `bun run test:e2e` (~70s, bun-pty snapshots — only run before release, update with `--update-snapshots`)
+- All: `bun run test:all` (everything)
 - Release: `./scripts/release.sh` (version is set manually in package.json)
 - Dev: `bun link` to symlink local build to global `revspec` command
 

@@ -3,7 +3,7 @@ import {
   isValidStatus,
   isValidThread,
   isValidReviewFile,
-} from "../../src/protocol/types";
+} from "../../../src/protocol/types";
 
 describe("isValidStatus", () => {
   it("accepts open", () => expect(isValidStatus("open")).toBe(true));

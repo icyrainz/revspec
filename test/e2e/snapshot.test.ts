@@ -118,7 +118,7 @@ describe("revspec E2E snapshots", () => {
     harness = await createHarness(SPEC);
     harness.sendKeys("?");
     await harness.wait(300);
-    harness.sendKeys("jjjjj");
+    harness.sendKeys("jjjjjjjjjjjjjjj");
     await harness.wait(300);
     // Use contains() instead of snapshot — help overlay text wraps
     // differently after scrolling across terminal environments
@@ -320,22 +320,20 @@ describe("revspec E2E snapshots", () => {
     await harness.wait(200);
     harness.sendKeys("q");
     await harness.wait(300);
-    // Cursor should be on the thread line — bottom bar should show [r] resolve [dd] delete
+    // Cursor should be on the thread line — bottom bar should show [r] resolve
     expect(harness.contains("resolve")).toBe(true);
-    expect(harness.contains("delete")).toBe(true);
   });
 
   test("bottom bar hides thread hints on non-thread line", async () => {
     harness = await createHarness(SPEC);
     // No thread at line 1 — bottom bar should NOT show resolve/delete
     const screen = harness.capture();
-    // The bottom line should have move/comment/search/help but not resolve/delete
+    // The bottom line should have navigate/comment/help but not resolve
     const lines = screen.split("\n");
     const bottomLine = lines[lines.length - 1] || "";
-    expect(bottomLine).toContain("move");
+    expect(bottomLine).toContain("navigate");
     expect(bottomLine).toContain("comment");
     expect(bottomLine).not.toContain("resolve");
-    expect(bottomLine).not.toContain("delete");
   });
 
   // --- Approve ---

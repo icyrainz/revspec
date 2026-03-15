@@ -2,9 +2,9 @@ import { describe, it, expect, afterEach } from "bun:test";
 import { mkdtempSync, rmSync, writeFileSync } from "fs";
 import { join, resolve } from "path";
 import { tmpdir } from "os";
-import { appendEvent, readEventsFromOffset } from "../src/protocol/live-events";
+import { appendEvent, readEventsFromOffset } from "../../src/protocol/live-events";
 
-const CLI = resolve(import.meta.dir, "../bin/revspec.ts");
+const CLI = resolve(import.meta.dir, "../../bin/revspec.ts");
 
 interface SpawnResult {
   exitCode: number;

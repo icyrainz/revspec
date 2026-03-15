@@ -84,14 +84,12 @@ export function buildBottomBar(bar: BottomBarComponents, commandBuffer: string |
     return;
   }
   const hints: Hint[] = [
-    { key: "j/k", action: "move" },
+    { key: "j/k", action: "navigate" },
     { key: "c", action: "comment" },
   ];
   if (hasThread) {
     hints.push({ key: "r", action: "resolve" });
-    hints.push({ key: "dd", action: "delete thread" });
   }
-  hints.push({ key: "/", action: "search" });
   hints.push({ key: "?", action: "help" });
   buildHints(t, hints);
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { createKeybindRegistry } from "../../../src/tui/ui/keybinds";
+import { createKeybindRegistry } from "../../../../src/tui/ui/keybinds";
 
 function makeKey(name: string, opts: { ctrl?: boolean; shift?: boolean; sequence?: string } = {}): any {
   return { name, ctrl: opts.ctrl ?? false, shift: opts.shift ?? false, sequence: opts.sequence ?? name };

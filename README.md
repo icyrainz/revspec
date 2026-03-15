@@ -44,25 +44,41 @@ Revspec renders markdown in-place (toggle with `m`):
 
 ### Keybindings
 
+**Navigation**
+
 | Key | Action |
 |-----|--------|
 | `j/k` | Move cursor down/up |
 | `gg` / `G` | Go to top / bottom |
 | `Ctrl+D/U` | Half page down/up |
+| `zz` | Center cursor line in viewport |
+| `/` | Search (smartcase: lowercase = case-insensitive, any uppercase = case-sensitive) |
+| `n/N` | Next/prev search match |
+| `Esc` | Clear search highlights |
+| `]t/[t` | Next/prev thread |
+| `]r/[r` | Next/prev unread AI reply |
+
+**Review**
+
+| Key | Action |
+|-----|--------|
 | `c` | Open thread / comment on line |
 | `r` | Resolve thread (toggle) |
 | `R` | Resolve all pending |
 | `dd` | Delete thread (with confirm) |
-| `/` | Search |
-| `n/N` | Next/prev search match |
-| `]t/[t` | Next/prev thread |
-| `]r/[r` | Next/prev unread AI reply |
-| `l` | List threads |
+| `T` | List threads |
 | `a` | Approve spec |
+
+**Commands**
+
+| Key | Action |
+|-----|--------|
 | `:w` | Merge changes to review JSON |
-| `:wq` | Merge and quit |
+| `:wq` / `:qw` | Merge and quit |
 | `:q` | Quit (blocks if unsaved) |
-| `:q!` / `:qw` | Quit without merging / Save and quit |
+| `:q!` | Quit without merging |
+| `:{N}` | Jump to line N (e.g. `:42`) |
+| `Ctrl+C` | Quit without merging |
 | `?` | Help |
 
 ### Thread popup
@@ -70,7 +86,7 @@ Revspec renders markdown in-place (toggle with `m`):
 The thread popup has two modes:
 
 - **Insert mode** — type your comment, `Tab` sends, `Esc` switches to normal mode
-- **Normal mode** — `j/k` and `Ctrl+D/U` scroll the conversation history, `c` to reply, `r` to resolve, `Esc` to close
+- **Normal mode** — `j/k` and `Ctrl+D/U` scroll the conversation, `gg/G` top/bottom, `c` to reply, `r` to resolve, `Esc` to close
 
 ## Live AI Integration
 

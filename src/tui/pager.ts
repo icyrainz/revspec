@@ -35,7 +35,8 @@ export function buildPagerContent(state: ReviewState, searchQuery?: string | nul
     const prefix = isCursor ? ">" : " ";
     let specText = state.specLines[i];
     if (searchQuery) {
-      const regex = new RegExp(searchQuery.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
+      const csSensitive = searchQuery !== searchQuery.toLowerCase();
+      const regex = new RegExp(searchQuery.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), csSensitive ? "g" : "gi");
       specText = specText.replace(regex, (match) => `>>${match}<<`);
     }
     let indicator = " ";
@@ -173,7 +174,8 @@ export function buildPagerNodes(lineNode: TextRenderable, state: ReviewState, se
     } else if (searchQuery) {
       // When searching, show colored match segments (no markdown styling)
       const escaped = searchQuery.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      const searchRegex = new RegExp(`(${escaped})`, "gi");
+      const caseSensitive = searchQuery !== searchQuery.toLowerCase();
+      const searchRegex = new RegExp(`(${escaped})`, caseSensitive ? "g" : "gi");
       const parts = specText.split(searchRegex);
       for (let p = 0; p < parts.length; p++) {
         const part = parts[p];

@@ -2,9 +2,9 @@ import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { mkdtempSync, rmSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
-import { mergeJsonlIntoReview } from "../../src/protocol/live-merge";
-import { appendEvent } from "../../src/protocol/live-events";
-import type { ReviewFile } from "../../src/protocol/types";
+import { mergeJsonlIntoReview } from "../../../src/protocol/live-merge";
+import { appendEvent } from "../../../src/protocol/live-events";
+import type { ReviewFile } from "../../../src/protocol/types";
 
 function tmpDir() {
   return mkdtempSync(join(tmpdir(), "revspec-test-"));

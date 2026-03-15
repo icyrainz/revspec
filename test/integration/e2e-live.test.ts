@@ -2,11 +2,11 @@ import { describe, it, expect, beforeEach, afterEach } from "bun:test"
 import { mkdtempSync, rmSync, writeFileSync, existsSync } from "fs"
 import { join } from "path"
 import { tmpdir } from "os"
-import { appendEvent, readEventsFromOffset } from "../src/protocol/live-events"
-import { mergeJsonlIntoReview } from "../src/protocol/live-merge"
-import { writeReviewFile } from "../src/protocol/write"
+import { appendEvent, readEventsFromOffset } from "../../src/protocol/live-events"
+import { mergeJsonlIntoReview } from "../../src/protocol/live-merge"
+import { writeReviewFile } from "../../src/protocol/write"
 
-const CLI = join(import.meta.dir, "..", "bin", "revspec.ts")
+const CLI = join(import.meta.dir, "..", "..", "bin", "revspec.ts")
 
 describe("E2E: live review loop", () => {
   let dir: string

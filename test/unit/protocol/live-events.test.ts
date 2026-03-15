@@ -8,7 +8,7 @@ import {
   readEventsFromOffset,
   replayEventsToThreads,
   type LiveEvent,
-} from "../../src/protocol/live-events";
+} from "../../../src/protocol/live-events";
 
 function tmpDir() {
   return mkdtempSync(join(tmpdir(), "revspec-test-"));

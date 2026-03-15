@@ -1,6 +1,6 @@
 import { describe, expect, it, beforeEach } from "bun:test";
-import { ReviewState } from "../../src/state/review-state";
-import type { Thread } from "../../src/protocol/types";
+import { ReviewState } from "../../../src/state/review-state";
+import type { Thread } from "../../../src/protocol/types";
 
 const SPEC = ["line one", "line two", "line three", "line four", "line five"];
 

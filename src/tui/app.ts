@@ -253,6 +253,14 @@ export async function runTui(
       keybinds.destroy();
       return "exit";
     }
+    // :{N} — jump to line number
+    const lineNum = parseInt(cmd, 10);
+    if (!isNaN(lineNum) && lineNum > 0) {
+      state.cursorLine = Math.min(lineNum, state.lineCount);
+      ensureCursorVisible();
+      refreshPager();
+      return "stay";
+    }
     return "stay"; // unknown command, ignore
   }
 
@@ -361,11 +369,14 @@ export async function runTui(
     currentLine: number,
     direction: 1 | -1
   ): number | null {
-    const q = query.toLowerCase();
+    // Smartcase: if query has any uppercase, case-sensitive
+    const caseSensitive = query !== query.toLowerCase();
+    const q = caseSensitive ? query : query.toLowerCase();
     const total = lines.length;
     for (let offset = 1; offset <= total; offset++) {
       const i = ((currentLine - 1) + offset * direction + total) % total;
-      if (lines[i].toLowerCase().includes(q)) {
+      const line = caseSensitive ? lines[i] : lines[i].toLowerCase();
+      if (line.includes(q)) {
         return i + 1; // 1-based
       }
     }
@@ -386,7 +397,7 @@ export async function runTui(
     { key: "n", action: "search-next" },
     { key: "N", action: "search-prev" },
     { key: "c", action: "comment" },
-    { key: "l", action: "thread-list" },
+    { key: "T", action: "thread-list" },
     { key: "r", action: "resolve" },
     { key: "R", action: "resolve-all" },
     { key: "dd", action: "delete-draft" },
@@ -395,11 +406,12 @@ export async function runTui(
     { key: "[t", action: "prev-thread" },
     { key: "]r", action: "next-unread" },
     { key: "[r", action: "prev-unread" },
+    { key: "zz", action: "center-cursor" },
     { key: "?", action: "help" },
     { key: "/", action: "search" },
     { key: ":", action: "command-mode" },
   ];
-  const keybinds = createKeybindRegistry(bindings);
+  const keybinds = createKeybindRegistry(bindings, 300);
 
   refreshPager();
   renderer.start();
@@ -460,9 +472,13 @@ export async function runTui(
         return;
       }
 
-      // Ctrl+C to exit — merge and quit
+      // Ctrl+C to exit — quit without merging (same as :q!)
       if (key.ctrl && key.name === "c") {
-        mergeAndExit(resolve);
+        appendEvent(jsonlPath, { type: "session-end", author: "reviewer", ts: Date.now() });
+        liveWatcher.stop();
+        keybinds.destroy();
+        renderer.destroy();
+        resolve();
         return;
       }
 
@@ -527,6 +543,14 @@ export async function runTui(
           ensureCursorVisible();
           refreshPager();
           break;
+        case "center-cursor": {
+          const extra = countExtraVisualLines(state.specLines, state.cursorLine - 1);
+          const cursorRow = state.cursorLine - 1 + extra;
+          const halfView = Math.floor(pageSize() / 2);
+          pager.scrollBox.scrollTo(Math.max(0, cursorRow - halfView));
+          refreshPager();
+          break;
+        }
         case "search-next":
           if (searchQuery) {
             const match = findNextMatch(state.specLines, searchQuery, state.cursorLine, 1);

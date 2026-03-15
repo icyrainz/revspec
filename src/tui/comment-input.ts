@@ -50,16 +50,17 @@ function createThreadView(
     { key: "NORMAL", action: "" },
     { key: "c", action: "reply" },
     { key: "r", action: "resolve" },
-    { key: "Esc/q", action: "close" },
+    { key: "q", action: "close" },
   ];
   const insertHints = [
     { key: "INSERT", action: "" },
     { key: "Tab", action: "send" },
-    { key: "Esc", action: "back" },
+    { key: "Esc", action: "normal" },
   ];
 
   // --- State ---
   let mode: "normal" | "insert" = "insert";
+  let pendingG: ReturnType<typeof setTimeout> | null = null;
 
   // Build the textarea now (we need it in the key handler closure)
   const textarea = new TextareaRenderable(renderer, {
@@ -151,10 +152,19 @@ function createThreadView(
       case "g":
         if (key.shift) {
           // G = go to bottom
+          if (pendingG) { clearTimeout(pendingG); pendingG = null; }
           scrollBox.scrollTo(scrollBox.scrollHeight);
           renderer.requestRender();
+        } else if (pendingG) {
+          // gg = go to top
+          clearTimeout(pendingG);
+          pendingG = null;
+          scrollBox.scrollTo(0);
+          renderer.requestRender();
+        } else {
+          // First g — wait for second
+          pendingG = setTimeout(() => { pendingG = null; }, 300);
         }
-        // TODO: gg = go to top (needs double-tap tracking)
         return;
     }
   };
@@ -273,6 +283,7 @@ function createThreadView(
   return {
     container: dialog.container,
     cleanup() {
+      if (pendingG) clearTimeout(pendingG);
       renderer.keyInput.off("keypress", keyHandler);
       dialog.cleanup();
       textarea.destroy();

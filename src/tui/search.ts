@@ -83,18 +83,23 @@ export function createSearch(opts: SearchOptions): SearchOverlay {
     if (key.name === "return") {
       key.preventDefault();
       key.stopPropagation();
-      const query = input.value.trim().toLowerCase();
-      if (query.length === 0) {
+      const raw = input.value.trim();
+      if (raw.length === 0) {
         onCancel();
         return;
       }
+
+      // Smartcase: if query has any uppercase, case-sensitive; otherwise case-insensitive
+      const caseSensitive = raw !== raw.toLowerCase();
+      const query = caseSensitive ? raw : raw.toLowerCase();
 
       // Search forward from cursor, wrapping around
       const total = specLines.length;
       for (let offset = 1; offset <= total; offset++) {
         const i = (cursorLine - 1 + offset) % total;
-        if (specLines[i].toLowerCase().includes(query)) {
-          onResult(i + 1, query); // 1-based line number + query
+        const line = caseSensitive ? specLines[i] : specLines[i].toLowerCase();
+        if (line.includes(query)) {
+          onResult(i + 1, raw); // 1-based line number + original query (preserves case for n/N)
           return;
         }
       }

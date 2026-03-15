@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test";
-import { buildPagerContent } from "../../src/tui/pager";
-import { ReviewState } from "../../src/state/review-state";
-import type { Thread } from "../../src/protocol/types";
+import { buildPagerContent } from "../../../src/tui/pager";
+import { ReviewState } from "../../../src/state/review-state";
+import type { Thread } from "../../../src/protocol/types";
 
 const SPEC = ["# Title", "Some text", "More text", "Final line"];
 
