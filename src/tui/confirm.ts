@@ -37,7 +37,7 @@ export function createConfirm(opts: ConfirmOptions): ConfirmOverlay {
     borderColor: theme.warning,
     onDismiss: onCancel,
     hints: [
-      { key: "y", action: "yes" },
+      { key: "y/Enter", action: "yes" },
       { key: "n/Esc", action: "no" },
     ],
   });
@@ -52,7 +52,7 @@ export function createConfirm(opts: ConfirmOptions): ConfirmOverlay {
   dialog.content.add(msgText);
 
   const extraKeyHandler = (key: KeyEvent) => {
-    if (key.name === "y") {
+    if (key.name === "y" || key.name === "return") {
       key.preventDefault();
       key.stopPropagation();
       onConfirm();
