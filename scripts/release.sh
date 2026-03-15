@@ -34,18 +34,17 @@ if [[ ! $REPLY =~ ^[Yy]$ ]]; then
   exit 0
 fi
 
-# Tag if not already tagged
-if ! git tag -l "v$VERSION" | grep -q .; then
-  git tag "v$VERSION"
-fi
+# Tag current commit (force-update if tag exists)
+git tag -f "v$VERSION"
 
 # Publish to npm
 echo ""
 echo "Publishing to npm..."
 npm publish
 
-# Push
-git push && git push origin "v$VERSION"
+# Push commit and tag (force-update remote tag if it exists)
+git push
+git push origin "v$VERSION" --force
 
 echo ""
 echo "Released v$VERSION"
