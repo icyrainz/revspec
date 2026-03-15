@@ -1,9 +1,10 @@
-import type { Thread } from "../protocol/types";
+import type { Thread, Message } from "../protocol/types";
 
 export class ReviewState {
   specLines: string[];
   threads: Thread[];
   cursorLine: number = 1;
+  private unreadThreadIds: Set<string> = new Set();
 
   constructor(specLines: string[], threads: Thread[]) {
     this.specLines = specLines;
@@ -128,6 +129,42 @@ export class ReviewState {
     if (thread.messages.length === 0) {
       this.threads = this.threads.filter((t) => t.id !== threadId);
     }
+  }
+
+  addOwnerReply(threadId: string, text: string, ts?: number): void {
+    const thread = this.threads.find((t) => t.id === threadId);
+    if (!thread) return;
+    const msg: Message = { author: "owner", text };
+    if (ts !== undefined) msg.ts = ts;
+    thread.messages.push(msg);
+    thread.status = "pending";
+    this.unreadThreadIds.add(threadId);
+  }
+
+  unreadCount(): number {
+    return this.unreadThreadIds.size;
+  }
+
+  isThreadUnread(threadId: string): boolean {
+    return this.unreadThreadIds.has(threadId);
+  }
+
+  markRead(threadId: string): void {
+    this.unreadThreadIds.delete(threadId);
+  }
+
+  nextUnreadThread(): number | null {
+    const unreadThreads = this.threads.filter((t) => this.unreadThreadIds.has(t.id));
+    const after = unreadThreads.find((t) => t.line > this.cursorLine);
+    if (after) return after.line;
+    return unreadThreads.length > 0 ? unreadThreads[0].line : null;
+  }
+
+  prevUnreadThread(): number | null {
+    const unreadThreads = this.threads.filter((t) => this.unreadThreadIds.has(t.id));
+    const before = [...unreadThreads].reverse().find((t) => t.line < this.cursorLine);
+    if (before) return before.line;
+    return unreadThreads.length > 0 ? unreadThreads[unreadThreads.length - 1].line : null;
   }
 
   toDraft(): { threads: Thread[] } {
