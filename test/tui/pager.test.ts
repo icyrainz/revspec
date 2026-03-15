@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 import { buildPagerContent } from "../../src/tui/pager";
 import { ReviewState } from "../../src/state/review-state";
 import type { Thread } from "../../src/protocol/types";
+import type { StyledText } from "@opentui/core";
 
 const SPEC = ["# Title", "Some text", "More text", "Final line"];
 
@@ -14,17 +15,25 @@ function makeThread(
   return { id, line, status, messages };
 }
 
+/** Extract plain text from StyledText chunks */
+function toPlainText(st: StyledText): string {
+  return st.chunks.map((c) => (typeof c === "string" ? c : c.text)).join("");
+}
+
+/** Split StyledText into lines of plain text */
+function toLines(st: StyledText): string[] {
+  return toPlainText(st).split("\n");
+}
+
 describe("buildPagerContent", () => {
   it("renders lines with line numbers", () => {
     const state = new ReviewState(SPEC, []);
     const content = buildPagerContent(state);
-    const lines = content.split("\n");
+    const lines = toLines(content);
 
     expect(lines).toHaveLength(4);
-    // Line 1 is the cursor line, gets ">" prefix
     expect(lines[0]).toContain("   1");
     expect(lines[0]).toContain("# Title");
-    // Other lines get " " prefix
     expect(lines[1]).toContain("   2");
     expect(lines[1]).toContain("Some text");
     expect(lines[2]).toContain("   3");
@@ -35,11 +44,9 @@ describe("buildPagerContent", () => {
     const state = new ReviewState(SPEC, []);
     state.cursorLine = 3;
     const content = buildPagerContent(state);
-    const lines = content.split("\n");
+    const lines = toLines(content);
 
-    // Line 3 (index 2) should have ">" prefix
     expect(lines[2]).toMatch(/^>/);
-    // Other lines should have " " prefix
     expect(lines[0]).toMatch(/^ /);
     expect(lines[1]).toMatch(/^ /);
     expect(lines[3]).toMatch(/^ /);
@@ -48,16 +55,15 @@ describe("buildPagerContent", () => {
   it("shows gutter indicator for open threads", () => {
     const state = new ReviewState(SPEC, [makeThread("t1", 2, "open")]);
     const content = buildPagerContent(state);
-    const lines = content.split("\n");
+    const lines = toLines(content);
 
-    // Line 2 should contain the half block gutter ▌
     expect(lines[1]).toContain("\u258c");
   });
 
   it("shows gutter indicator for pending threads", () => {
     const state = new ReviewState(SPEC, [makeThread("t1", 2, "pending")]);
     const content = buildPagerContent(state);
-    const lines = content.split("\n");
+    const lines = toLines(content);
 
     expect(lines[1]).toContain("\u258c");
   });
@@ -65,7 +71,7 @@ describe("buildPagerContent", () => {
   it("shows checkmark for resolved threads", () => {
     const state = new ReviewState(SPEC, [makeThread("t1", 2, "resolved")]);
     const content = buildPagerContent(state);
-    const lines = content.split("\n");
+    const lines = toLines(content);
 
     expect(lines[1]).toContain("\u2713");
   });
@@ -73,9 +79,8 @@ describe("buildPagerContent", () => {
   it("shows gutter indicator for outdated threads", () => {
     const state = new ReviewState(SPEC, [makeThread("t1", 2, "outdated")]);
     const content = buildPagerContent(state);
-    const lines = content.split("\n");
+    const lines = toLines(content);
 
-    // Outdated uses half block like open/pending
     expect(lines[1]).toContain("\u258c");
   });
 
@@ -87,12 +92,12 @@ describe("buildPagerContent", () => {
       makeThread("t4", 4, "outdated"),
     ]);
     const content = buildPagerContent(state);
-    const lines = content.split("\n");
+    const lines = toLines(content);
 
-    expect(lines[0]).toContain("\u258c"); // ▌ open
-    expect(lines[1]).toContain("\u258c"); // ▌ pending
-    expect(lines[2]).toContain("\u2713"); // ✓ resolved
-    expect(lines[3]).toContain("\u258c"); // ▌ outdated
+    expect(lines[0]).toContain("\u258c");
+    expect(lines[1]).toContain("\u258c");
+    expect(lines[2]).toContain("\u2713");
+    expect(lines[3]).toContain("\u258c");
   });
 
   it("shows thread hint with latest message text", () => {
@@ -103,9 +108,9 @@ describe("buildPagerContent", () => {
       ]),
     ]);
     const content = buildPagerContent(state);
-    const lines = content.split("\n");
+    const text = toPlainText(content);
 
-    expect(lines[1]).toContain("My response");
+    expect(text).toContain("My response");
   });
 
   it("truncates long comment text to 40 chars", () => {
@@ -115,32 +120,26 @@ describe("buildPagerContent", () => {
       makeThread("t1", 2, "open", [{ author: "reviewer", text: longText }]),
     ]);
     const content = buildPagerContent(state);
-    const lines = content.split("\n");
+    const text = toPlainText(content);
 
-    // Should be truncated to 39 chars + ellipsis
-    expect(lines[1]).toContain("\u2026");
-    // The full text should NOT appear
-    expect(lines[1]).not.toContain(longText);
+    expect(text).toContain("\u2026");
+    expect(text).not.toContain(longText);
   });
 
   it("does not show status indicator for lines without threads", () => {
     const state = new ReviewState(SPEC, [makeThread("t1", 2, "open")]);
     const content = buildPagerContent(state);
-    const lines = content.split("\n");
+    const lines = toLines(content);
 
-    // Line 1 (no thread) should not contain any status icons
-    expect(lines[0]).not.toContain("\u{1F4AC}");
-    expect(lines[0]).not.toContain("\u{1F535}");
-    expect(lines[0]).not.toContain("\u2714");
-    expect(lines[0]).not.toContain("\u26A0");
+    expect(lines[0]).not.toContain("\u258c");
+    expect(lines[0]).not.toContain("\u2713");
   });
 
   it("pads line numbers to 4 characters", () => {
     const state = new ReviewState(SPEC, []);
     const content = buildPagerContent(state);
-    const lines = content.split("\n");
+    const lines = toLines(content);
 
-    // Line numbers are wrapped in ANSI gray codes, so check the raw number is present
     expect(lines[0]).toContain("   1");
     expect(lines[0]).toContain("# Title");
   });
@@ -148,18 +147,16 @@ describe("buildPagerContent", () => {
   it("handles empty spec", () => {
     const state = new ReviewState([], []);
     const content = buildPagerContent(state);
-    expect(content).toBe("");
+    expect(toPlainText(content)).toBe("");
   });
 
   it("highlights search matches with >> << markers", () => {
     const state = new ReviewState(SPEC, []);
     const content = buildPagerContent(state, "text");
-    const lines = content.split("\n");
+    const lines = toLines(content);
 
-    // Lines 2 and 3 contain "text" — should be highlighted
     expect(lines[1]).toContain("Some >>text<<");
     expect(lines[2]).toContain("More >>text<<");
-    // Lines 1 and 4 do not contain "text"
     expect(lines[0]).not.toContain(">>");
     expect(lines[3]).not.toContain(">>");
   });
@@ -167,7 +164,7 @@ describe("buildPagerContent", () => {
   it("highlights search matches case-insensitively", () => {
     const state = new ReviewState(["Hello World", "hello again"], []);
     const content = buildPagerContent(state, "hello");
-    const lines = content.split("\n");
+    const lines = toLines(content);
 
     expect(lines[0]).toContain(">>Hello<<");
     expect(lines[1]).toContain(">>hello<<");
@@ -176,10 +173,21 @@ describe("buildPagerContent", () => {
   it("does not highlight when searchQuery is null", () => {
     const state = new ReviewState(SPEC, []);
     const content = buildPagerContent(state, null);
-    const lines = content.split("\n");
+    const lines = toLines(content);
 
     expect(lines[1]).toContain("Some text");
     expect(lines[1]).not.toContain(">>");
   });
-});
 
+  it("renders thread hint as styled (dimmed) chunk", () => {
+    const state = new ReviewState(SPEC, [
+      makeThread("t1", 2, "open", [{ author: "reviewer", text: "my comment" }]),
+    ]);
+    const content = buildPagerContent(state);
+    // The hint should be a separate styled chunk (not plain string)
+    const hintChunk = content.chunks.find(
+      (c) => typeof c !== "string" && c.text.includes("my comment")
+    );
+    expect(hintChunk).toBeDefined();
+  });
+});
