@@ -89,7 +89,7 @@ export function buildBottomBar(bar: BottomBarComponents, commandBuffer: string |
   ];
   if (hasThread) {
     hints.push({ key: "r", action: "resolve" });
-    hints.push({ key: "dd", action: "delete" });
+    hints.push({ key: "dd", action: "delete thread" });
   }
   hints.push({ key: "/", action: "search" });
   hints.push({ key: "?", action: "help" });

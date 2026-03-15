@@ -594,19 +594,24 @@ export async function runTui(
         case "delete-draft": {
           const thread = state.threadAtLine(state.cursorLine);
           if (!thread) break;
-          const hadReviewerMsg = thread.messages.some((m) => m.author === "reviewer");
-          if (hadReviewerMsg) {
-            state.deleteLastDraftMessage(thread.id);
-            appendEvent(jsonlPath, { type: "delete", threadId: thread.id, author: "reviewer", ts: Date.now() });
-            refreshPager();
-            setBottomBarMessage(bottomBar, " \u2714 Deleted draft comment");
-            renderer.requestRender();
-            setTimeout(() => { refreshPager(); }, 1500);
-          } else {
-            setBottomBarMessage(bottomBar, " No reviewer message to delete");
-            renderer.requestRender();
-            setTimeout(() => { refreshPager(); }, 1500);
-          }
+          const deleteOverlay = createConfirm({
+            renderer,
+            title: "Delete Thread",
+            message: `Delete thread #${thread.id} on line ${thread.line}?`,
+            onConfirm: () => {
+              dismissOverlay();
+              state.deleteThread(thread.id);
+              appendEvent(jsonlPath, { type: "delete", threadId: thread.id, author: "reviewer", ts: Date.now() });
+              refreshPager();
+              setBottomBarMessage(bottomBar, ` \u2714 Deleted thread #${thread.id}`);
+              renderer.requestRender();
+              setTimeout(() => { refreshPager(); }, 1500);
+            },
+            onCancel: () => {
+              dismissOverlay();
+            },
+          });
+          showOverlay(deleteOverlay);
           break;
         }
         case "approve":

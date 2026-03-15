@@ -87,7 +87,7 @@ export function createHelp(opts: {
     "  c         Comment / view thread / reply",
     "  r         Resolve thread",
     "  R         Resolve all pending",
-    "  dd        Delete draft comment (double-tap)",
+    "  dd        Delete thread (with confirm)",
     "  l         List threads",
     "  a         Approve spec",
   ]);
