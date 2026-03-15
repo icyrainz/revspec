@@ -72,19 +72,20 @@ docs/specs/feature-design.review.live.jsonl    # live chat log (append-only audi
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `type` | string | yes | `comment`, `reply`, `resolve`, `unresolve`, `approve` |
+| `type` | string | yes | `comment`, `reply`, `resolve`, `unresolve`, `approve`, `delete`, `round` |
 | `threadId` | string | yes (except `approve`) | Thread identifier (e.g., `t1`) |
 | `line` | integer | only for `comment` | 1-indexed line anchor in spec |
 | `author` | string | yes | `human` or `ai` |
 | `text` | string | only for `comment`/`reply` | Message content |
 | `ts` | integer | yes | `Date.now()` timestamp |
+| `round` | integer | only for `round` | Round number (1-indexed) |
 
 ### Rules
 
 - Append-only — neither side edits or truncates the file
 - `comment` creates a new thread; `reply` adds to an existing one
 - Only humans create threads (AI only replies)
-- Thread IDs are auto-incremented by the TUI (`t1`, `t2`, ...)
+- Thread IDs are auto-incremented by the TUI (`t1`, `t2`, ...). IDs are globally unique across rounds because `nextThreadId()` scans all threads from both the review JSON (prior rounds) and the replayed JSONL (current session) to find the highest existing ID.
 - `approve` signals the session is complete
 - Write atomicity: each event is a single `appendFileSync` call with a trailing `\n`. On read, discard any final line that does not parse as valid JSON (partial write from crash/kill).
 
@@ -115,9 +116,31 @@ During a live session, thread status is derived from the JSONL event stream:
 | `reply` (human) | `open` (AI's turn) |
 | `reply` (ai) | `pending` (human's turn) |
 | `resolve` | `resolved` |
-| `unresolve` | `open` |
+| `unresolve` (human) | `open` (AI's turn — human reopened the thread) |
+| `delete` (human) | status unchanged (message removed, thread state unaffected unless last message deleted — see Delete Behavior) |
 
 The `outdated` status is not used during live sessions (the spec is frozen, no anchors move). It is set by the AI between rounds when rewriting the spec and updating anchors.
+
+### Delete Behavior (`dd` in live mode)
+
+In batch mode, `dd` deletes the last draft message from in-memory state. In live mode, the message has already been appended to the JSONL and may have been seen by the AI watcher.
+
+Live mode behavior: `dd` appends a `delete` event to the JSONL:
+
+```jsonl
+{"type":"delete","threadId":"t1","author":"human","ts":1710400060}
+```
+
+This signals that the last human message on the thread should be treated as retracted. The merge step excludes deleted messages from the final JSON. The `watch` command, on seeing a `delete` event, includes it in its output so the AI knows to disregard the deleted comment:
+
+```
+--- Deleted ---
+[t1] line 14: human retracted last message
+```
+
+If the AI has already replied to the deleted comment, the AI's reply remains in the JSONL (append-only). The human can resolve the thread to dismiss both.
+
+If `delete` removes the only message in a thread (thread was just created), the thread is effectively empty and excluded from the merge.
 
 ### AI Reply to Resolved Thread
 
@@ -280,14 +303,24 @@ Review file: docs/specs/feature-design.review.json
 - Includes spec context around each comment (surrounding lines) and full thread history so the AI can reply without reading extra files
 - Exits after outputting (AI re-spawns for the next batch)
 - Falls back to polling (check file mtime every 500ms) if `fs.watch()` does not fire within 2 seconds — guards against known `fs.watch` reliability issues on macOS/Linux
+- Detects session end by seeing an `approve` event in the JSONL — outputs "Review approved" and exits
+
+**Single watcher enforcement:**
+
+Only one `revspec watch` process is supported at a time. On first invocation, `watch` creates a lock file (`spec.review.live.lock`) containing the PID of the process. On subsequent invocations:
+- If the lock file exists and the PID is alive: exit with code 3 (`"Another watch process is already running"`)
+- If the lock file exists but the PID is dead: stale lock — delete and proceed (handles AI tool crashes)
+
+The lock file is deleted when `watch` outputs "Review approved" (session complete). Between `watch` invocations within the same session (watch exits after outputting, AI re-spawns), the lock is **not** deleted — the new `watch` process overwrites the lock with its own PID.
 
 **Exit codes:**
 
 | Code | Meaning |
 |------|---------|
-| 0 | New comments returned, or review approved |
+| 0 | New comments returned, or review approved (distinguish by parsing output) |
 | 1 | Spec file not found or invalid |
 | 2 | JSONL file corrupted (unrecoverable) |
+| 3 | Another watch process is already running |
 
 ### `revspec reply <file.md> <threadId> "<text>"`
 
@@ -304,7 +337,6 @@ $ revspec reply spec.md t1 "I can restructure this section around X. The key cha
 - Replying to a resolved thread is allowed — the thread reverts to `pending` (see AI Reply to Resolved Thread). No warning is printed.
 - Exits immediately (exit 0 on success, exit 1 if thread ID not found or empty text)
 - The TUI detects the file change and renders the AI reply
-- Only one `revspec watch` process is supported at a time. A lock file (`spec.review.live.lock`) is created on first `watch` call and deleted on session end. If a second `watch` is attempted, it exits with code 3 and prints `"Another watch process is already running"`.
 
 **Malformed event handling (TUI side):**
 - Events that fail JSON parsing: discarded (partial write)
@@ -386,7 +418,7 @@ In the original batch mode, `:q` submits comments (they weren't live until then)
 
 | Command | Live mode behavior |
 |---------|-------------------|
-| `:q` | Merge JSONL → JSON (full replay from byte 0 — catches any AI replies that landed during merge), exit. Warn if unresolved threads exist. |
+| `:q` | Merge JSONL → JSON (full replay from byte 0), exit. Warn if unresolved threads exist. Note: an AI reply that lands after the merge completes but before the process exits will be in the JSONL but not the JSON — the next session's startup replay will capture it. |
 | `:wq` | Same as `:q` (no separate "save" step — JSONL is already persisted) |
 | `:q!` | Exit without merging JSONL → JSON. JSONL is preserved as audit log. |
 | `a` (approve) | Append `approve` event to JSONL, merge JSONL → JSON, exit. Requires all threads resolved/outdated. |
@@ -470,4 +502,4 @@ The `ts` field on `Message` is optional. Existing `spec.review.json` files witho
 
 - **Bash timeout on `revspec watch`:** Claude Code's background Bash has a max 10-minute timeout. If the human takes longer, the watcher times out. The orchestration skill should re-spawn on timeout.
 - **Concurrent replies:** If the human adds 3 comments quickly, the `watch` command batches all new events and returns them together. The AI can reply to all at once.
-- **JSONL across rounds:** Each review round appends to the same JSONL file. The audit log shows the full history across all rounds. A `{"type":"round","round":2,"ts":...}` marker event could separate rounds for readability, but is not required.
+- **JSONL across rounds:** Each review round appends to the same JSONL file. The audit log shows the full history across all rounds. A `{"type":"round","round":N,"ts":...}` marker is appended by the orchestration layer before each new round (see Session Boundaries).
