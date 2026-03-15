@@ -180,10 +180,26 @@ export async function runTui(
   }
 
   // Helper: merge JSONL into review JSON and clean up
-  function mergeAndExit(resolve: () => void): void {
+  // Track whether we have unmerged changes since last :w
+  let lastMergedOffset = 0;
+
+  function hasPendingChanges(): boolean {
+    if (!existsSync(jsonlPath)) return false;
+    const { size } = statSync(jsonlPath);
+    return size > lastMergedOffset;
+  }
+
+  function doMerge(): void {
     const existingReviewForMerge = readReviewFile(reviewPathForMerge);
     const merged = mergeJsonlIntoReview(jsonlPath, existingReviewForMerge, specFile);
     writeReviewFile(reviewPathForMerge, merged);
+    if (existsSync(jsonlPath)) {
+      lastMergedOffset = statSync(jsonlPath).size;
+    }
+  }
+
+  function mergeAndExit(resolve: () => void): void {
+    doMerge();
     liveWatcher.stop();
     renderer.destroy();
     resolve();
@@ -213,18 +229,28 @@ export async function runTui(
   // Returns: "exit" to exit (caller should destroy+resolve), "merged" if already handled, "stay" to keep running
   function processCommand(cmd: string, resolve: () => void): "exit" | "merged" | "stay" {
     if (cmd === "w") {
-      // Changes are auto-saved via JSONL
-      bottomBar.bar.content = " Changes auto-saved via JSONL";
+      // Merge JSONL -> JSON, stay open
+      doMerge();
+      bottomBar.bar.content = " \u2714 Merged to review JSON";
       renderer.requestRender();
-      setTimeout(() => {
-        refreshPager();
-      }, 1200);
+      setTimeout(() => { refreshPager(); }, 1200);
       return "stay";
     }
-    if (cmd === "q" || cmd === "wq") {
-      // Merge JSONL -> JSON and exit (mergeAndExit handles destroy+resolve)
+    if (cmd === "wq") {
+      // Merge and exit
       mergeAndExit(resolve);
       return "merged";
+    }
+    if (cmd === "q") {
+      // Exit only if merged (no pending changes)
+      if (hasPendingChanges()) {
+        bottomBar.bar.content = " Unmerged changes. Use :w to save or :q! to discard";
+        renderer.requestRender();
+        setTimeout(() => { refreshPager(); }, 2000);
+        return "stay";
+      }
+      liveWatcher.stop();
+      return "exit";
     }
     if (cmd === "q!") {
       // Exit without merging
