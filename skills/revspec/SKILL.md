@@ -38,7 +38,8 @@ echo $TMUX
 
 **If tmux is available:**
 ```bash
-tmux split-window -v "revspec <spec-file>"
+# Split from Claude Code's own pane (not the user's active window)
+tmux split-window -t "$TMUX_PANE" -v "revspec <spec-file>"
 ```
 
 **If no tmux:**
