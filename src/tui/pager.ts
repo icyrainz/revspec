@@ -5,9 +5,7 @@ import {
   TextRenderable,
   MarkdownRenderable,
   SyntaxStyle,
-  StyledText,
   parseColor,
-  dim,
   type CliRenderer,
 } from "@opentui/core";
 import { theme } from "./theme";
@@ -32,8 +30,8 @@ function threadHint(thread: Thread): string {
  * Build plain text line-mode content (for commenting).
  * Each line: cursor marker + lineNum + content + thread indicator + hint.
  */
-export function buildPagerContent(state: ReviewState, searchQuery?: string | null, unreadThreadIds?: ReadonlySet<string>): StyledText {
-  const chunks: (string | ReturnType<typeof dim>)[] = [];
+export function buildPagerContent(state: ReviewState, searchQuery?: string | null, unreadThreadIds?: ReadonlySet<string>): string {
+  const lines: string[] = [];
 
   for (let i = 0; i < state.specLines.length; i++) {
     const lineNum = i + 1;
@@ -61,20 +59,18 @@ export function buildPagerContent(state: ReviewState, searchQuery?: string | nul
       }
     }
 
-    // Spec text as plain content
-    chunks.push(`${prefix}${indicator}${padLineNum(lineNum)}  ${specText}`);
+    let line = `${prefix}${indicator}${padLineNum(lineNum)}  ${specText}`;
 
-    // Thread hint — dimmed so it's visually distinct from spec content
+    // Thread hint — separated with │ to distinguish from spec content
     if (thread) {
       const hint = threadHint(thread);
-      if (hint) chunks.push(dim(`  \u2502 ${hint}`));
+      if (hint) line += `  \u2502 ${hint}`;
     }
 
-    // Newline (except last line)
-    if (i < state.specLines.length - 1) chunks.push("\n");
+    lines.push(line);
   }
 
-  return new StyledText(chunks);
+  return lines.join("\n");
 }
 
 function createMarkdownStyle(): SyntaxStyle {
