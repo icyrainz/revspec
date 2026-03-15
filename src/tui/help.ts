@@ -100,8 +100,8 @@ export function createHelp(opts: {
     "  R         Resolve all pending",
     "  dd        Delete thread",
     "  T         List threads",
-    "  \u21e7S        Submit for rewrite",
-    "  \u21e7A        Approve spec",
+    "  S         Submit for rewrite",
+    "  A         Approve spec",
   ]);
 
   addHelpSection(dialog.content, renderer, "Commands", [
