@@ -41,7 +41,7 @@ describe("live interaction: multi-turn conversation", () => {
   beforeEach(() => {
     dir = mkdtempSync(join(tmpdir(), "revspec-interaction-"))
     specPath = join(dir, "spec.md")
-    jsonlPath = join(dir, "spec.review.live.jsonl")
+    jsonlPath = join(dir, "spec.review.jsonl")
     writeFileSync(specPath, "# Spec\n\nLine 3.\n\nLine 5.\n")
   })
 
@@ -287,7 +287,7 @@ describe("live interaction: crash recovery via event replay", () => {
   beforeEach(() => {
     dir = mkdtempSync(join(tmpdir(), "revspec-crash-"))
     specPath = join(dir, "spec.md")
-    jsonlPath = join(dir, "spec.review.live.jsonl")
+    jsonlPath = join(dir, "spec.review.jsonl")
     writeFileSync(specPath, "# Spec\n\nContent here.\n")
   })
 

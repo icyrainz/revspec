@@ -42,7 +42,7 @@ function createSpecWithJsonl(
   const specPath = join(dir, "spec.md");
   writeFileSync(specPath, specContent);
 
-  const jsonlPath = join(dir, "spec.review.live.jsonl");
+  const jsonlPath = join(dir, "spec.review.jsonl");
 
   return { specPath, jsonlPath };
 }
@@ -186,7 +186,7 @@ describe("revspec watch", () => {
   it("exits 3 when another watch is running (lock file with live PID)", async () => {
     tmpDir = setupTempDir();
     const { specPath, jsonlPath } = createSpecWithJsonl(tmpDir);
-    const lockPath = join(tmpDir, "spec.review.live.lock");
+    const lockPath = join(tmpDir, "spec.review.lock");
     writeFileSync(lockPath, String(process.pid)); // current process is alive
     appendEvent(jsonlPath, { type: "comment", threadId: "t1", line: 1, author: "reviewer", text: "x", ts: 1 });
 
@@ -201,7 +201,7 @@ describe("revspec watch", () => {
   it("proceeds when lock file has dead PID", async () => {
     tmpDir = setupTempDir();
     const { specPath, jsonlPath } = createSpecWithJsonl(tmpDir);
-    const lockPath = join(tmpDir, "spec.review.live.lock");
+    const lockPath = join(tmpDir, "spec.review.lock");
     writeFileSync(lockPath, "999999"); // almost certainly dead
     appendEvent(jsonlPath, { type: "comment", threadId: "t1", line: 1, author: "reviewer", text: "x", ts: 1 });
 

@@ -33,7 +33,7 @@
 - `:q` warns if unresolved threads, `:q!` force quits
 
 ## Live Protocol
-- JSONL file (`spec.review.live.jsonl`) — append-only, both TUI and AI write to it
+- JSONL file (`spec.review.jsonl`) — append-only, both TUI and AI write to it
 - `revspec watch` / `revspec reply` CLI subcommands for AI integration
 - Watch handles three exit conditions: approve > submit > session-end (priority order)
 - Crash recovery: watch detects pending unprocessed `submit` and re-outputs resolved thread summaries

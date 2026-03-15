@@ -17,7 +17,7 @@ describe("E2E: live review loop", () => {
   beforeEach(() => {
     dir = mkdtempSync(join(tmpdir(), "revspec-e2e-"))
     specPath = join(dir, "spec.md")
-    jsonlPath = join(dir, "spec.review.live.jsonl")
+    jsonlPath = join(dir, "spec.review.jsonl")
     reviewPath = join(dir, "spec.review.json")
     writeFileSync(specPath, "# My Spec\n\nLine 3 is important.\n\nLine 5 also matters.\n")
   })

@@ -43,7 +43,7 @@ function createTestFixtures(dir: string): {
   const specPath = join(dir, "spec.md");
   writeFileSync(specPath, "# My Spec\n\nSome content here.\n");
 
-  const jsonlPath = join(dir, "spec.review.live.jsonl");
+  const jsonlPath = join(dir, "spec.review.jsonl");
   const threadId = "thread-001";
 
   // Write a comment event so the thread exists

@@ -159,7 +159,7 @@ E2E tests use `bun-pty` to spawn revspec in a pseudo-terminal (80x24), send keys
 
 ## Protocol
 
-Communication happens through a JSONL file (`spec.review.live.jsonl`) — append-only, both sides write to it. The JSONL is the single source of truth for the review session.
+Communication happens through a JSONL file (`spec.review.jsonl`) — append-only, both sides write to it. The JSONL is the single source of truth for the review session.
 
 ### Event types
 

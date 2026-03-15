@@ -26,7 +26,7 @@ export function runReply(
   // Derive JSONL path
   const dir = dirname(specPath);
   const base = basename(specPath, ".md");
-  const jsonlPath = `${dir}/${base}.review.live.jsonl`;
+  const jsonlPath = `${dir}/${base}.review.jsonl`;
 
   // Validate JSONL exists
   if (!existsSync(jsonlPath)) {

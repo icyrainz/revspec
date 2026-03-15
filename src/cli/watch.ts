@@ -19,9 +19,9 @@ export async function runWatch(specFile: string): Promise<void> {
   // Derive paths
   const dir = dirname(specPath);
   const base = basename(specPath, ".md");
-  const jsonlPath = join(dir, `${base}.review.live.jsonl`);
-  const offsetPath = join(dir, `${base}.review.live.offset`);
-  const lockPath = join(dir, `${base}.review.live.lock`);
+  const jsonlPath = join(dir, `${base}.review.jsonl`);
+  const offsetPath = join(dir, `${base}.review.offset`);
+  const lockPath = join(dir, `${base}.review.lock`);
   const reviewPath = join(dir, `${base}.review.json`);
 
   // Handle lock file
@@ -135,7 +135,7 @@ export async function runWatch(specFile: string): Promise<void> {
 
   // Also watch the directory for the JSONL file to appear
   const dirWatcher = fsWatch(dir, (eventType, filename) => {
-    if (filename && filename.endsWith(".live.jsonl")) {
+    if (filename && filename.endsWith(".jsonl")) {
       setupWatcher();
     }
   });

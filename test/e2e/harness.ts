@@ -63,7 +63,7 @@ export async function createHarness(specFile: string, opts?: { cols?: number; ro
   function cleanReviewFiles(): void {
     const dir = dirname(specPath);
     const base = basename(specPath, ".md");
-    for (const ext of [".review.json", ".review.live.jsonl", ".review.live.offset", ".review.live.lock", ".review.draft.json"]) {
+    for (const ext of [".review.json", ".review.jsonl", ".review.offset", ".review.lock", ".review.draft.json"]) {
       const f = join(dir, `${base}${ext}`);
       try { if (existsSync(f)) unlinkSync(f); } catch {}
     }

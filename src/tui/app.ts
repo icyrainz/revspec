@@ -43,7 +43,7 @@ export async function runTui(
   // 4. Derive JSONL path and set up live protocol
   const dir = dirname(specFile);
   const base = basename(specFile, ".md");
-  const jsonlPath = `${dir}/${base}.review.live.jsonl`;
+  const jsonlPath = `${dir}/${base}.review.jsonl`;
   // Crash recovery: replay JSONL events if file exists
   if (existsSync(jsonlPath)) {
     const { events } = readEventsFromOffset(jsonlPath, 0);
