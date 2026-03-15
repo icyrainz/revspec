@@ -6,6 +6,7 @@ import {
 } from "@opentui/core";
 import { theme } from "./ui/theme";
 import { createDialog } from "./ui/dialog";
+import { HELP_HINTS } from "./ui/keymap";
 
 export interface HelpOverlay {
   container: import("@opentui/core").BoxRenderable;
@@ -55,10 +56,7 @@ export function createHelp(opts: {
     left: "20%",
     borderColor: theme.info,
     onDismiss: onClose,
-    hints: [
-      { key: "j/k", action: "navigate" },
-      { key: "q/?/Esc", action: "close" },
-    ],
+    hints: HELP_HINTS,
   });
 
   // Version header

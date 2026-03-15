@@ -8,6 +8,7 @@ import {
 import type { Thread, Message } from "../protocol/types";
 import { theme } from "./ui/theme";
 import { createDialog } from "./ui/dialog";
+import { THREAD_NORMAL_HINTS, THREAD_INSERT_HINTS } from "./ui/keymap";
 
 export interface CommentInputOptions {
   renderer: CliRenderer;
@@ -46,17 +47,8 @@ function createThreadView(
     ? `Thread #${thread.id} (line ${line})`
     : `New comment on line ${line}`;
 
-  const normalHints = [
-    { key: "NORMAL", action: "" },
-    { key: "c", action: "reply" },
-    { key: "r", action: "resolve" },
-    { key: "q/Esc", action: "close" },
-  ];
-  const insertHints = [
-    { key: "INSERT", action: "" },
-    { key: "Tab", action: "send" },
-    { key: "Esc", action: "normal" },
-  ];
+  const normalHints = THREAD_NORMAL_HINTS;
+  const insertHints = THREAD_INSERT_HINTS;
 
   // --- State ---
   let mode: "normal" | "insert" = "insert";

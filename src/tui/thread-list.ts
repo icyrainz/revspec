@@ -8,6 +8,7 @@ import {
 import type { Thread } from "../protocol/types";
 import { theme, STATUS_ICONS } from "./ui/theme";
 import { createDialog } from "./ui/dialog";
+import { THREAD_LIST_HINTS } from "./ui/keymap";
 
 export interface ThreadListOptions {
   renderer: CliRenderer;
@@ -55,11 +56,7 @@ export function createThreadList(opts: ThreadListOptions): ThreadListOverlay {
     left: "15%",
     borderColor: theme.mauve,
     onDismiss: onCancel,
-    hints: [
-      { key: "j/k", action: "navigate" },
-      { key: "Enter", action: "jump" },
-      { key: "Esc", action: "close" },
-    ],
+    hints: THREAD_LIST_HINTS,
   });
 
   let keyHandler: ((key: KeyEvent) => void) | null = null;

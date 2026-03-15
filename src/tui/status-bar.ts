@@ -2,7 +2,8 @@ import { BoxRenderable, TextRenderable, TextNodeRenderable, TextAttributes, type
 import type { ReviewState } from "../state/review-state";
 import { basename } from "path";
 import { theme } from "./ui/theme";
-import { buildHints, type Hint } from "./ui/hint-bar";
+import { buildHints } from "./ui/hint-bar";
+import { PAGER_HINTS } from "./ui/keymap";
 
 export interface TopBarComponents {
   box: BoxRenderable;
@@ -83,16 +84,16 @@ export function buildBottomBar(bar: BottomBarComponents, commandBuffer: string |
     t.add(TextNodeRenderable.fromString(` :${commandBuffer}`, { fg: theme.text }));
     return;
   }
-  const hints: Hint[] = [
-    { key: "j/k", action: "navigate" },
-    { key: "c", action: "comment" },
+  const hints = [
+    PAGER_HINTS.navigate,
+    PAGER_HINTS.comment,
   ];
   if (hasThread) {
-    hints.push({ key: "r", action: "resolve" });
+    hints.push(PAGER_HINTS.resolve);
   }
-  hints.push({ key: "Shift-S", action: "submit" });
-  hints.push({ key: "Shift-A", action: "approve" });
-  hints.push({ key: "?", action: "help" });
+  hints.push(PAGER_HINTS.submit);
+  hints.push(PAGER_HINTS.approve);
+  hints.push(PAGER_HINTS.help);
   buildHints(t, hints);
 }
 

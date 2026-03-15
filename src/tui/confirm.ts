@@ -5,6 +5,7 @@ import {
 } from "@opentui/core";
 import { theme } from "./ui/theme";
 import { createDialog } from "./ui/dialog";
+import { CONFIRM_HINTS } from "./ui/keymap";
 
 export interface ConfirmOptions {
   renderer: CliRenderer;
@@ -36,10 +37,7 @@ export function createConfirm(opts: ConfirmOptions): ConfirmOverlay {
     left: "25%",
     borderColor: theme.warning,
     onDismiss: onCancel,
-    hints: [
-      { key: "y/Enter", action: "yes" },
-      { key: "n/Esc", action: "no" },
-    ],
+    hints: CONFIRM_HINTS,
   });
 
   const msgText = new TextRenderable(renderer, {
