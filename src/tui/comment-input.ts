@@ -47,11 +47,13 @@ function createThreadView(
     : `New comment on line ${line}`;
 
   const normalHints = [
+    { key: "NORMAL", action: "" },
     { key: "c", action: "reply" },
     { key: "r", action: "resolve" },
     { key: "Esc/q", action: "close" },
   ];
   const insertHints = [
+    { key: "INSERT", action: "" },
     { key: "Tab", action: "send" },
     { key: "Esc", action: "back" },
   ];

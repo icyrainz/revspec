@@ -9,6 +9,7 @@ import { createDialog } from "./ui/dialog";
 export interface ConfirmOptions {
   renderer: CliRenderer;
   message: string;
+  title?: string;
   onConfirm: () => void;
   onCancel: () => void;
 }
@@ -24,13 +25,13 @@ export interface ConfirmOverlay {
  * y → confirm, n/Esc → cancel
  */
 export function createConfirm(opts: ConfirmOptions): ConfirmOverlay {
-  const { renderer, message, onConfirm, onCancel } = opts;
+  const { renderer, message, title = "Confirm", onConfirm, onCancel } = opts;
 
   const dialog = createDialog({
     renderer,
-    title: "Confirm",
+    title,
     width: "50%",
-    height: 7,
+    height: 9,
     top: "35%",
     left: "25%",
     borderColor: theme.warning,
@@ -44,10 +45,8 @@ export function createConfirm(opts: ConfirmOptions): ConfirmOverlay {
   const msgText = new TextRenderable(renderer, {
     content: message,
     width: "100%",
-    height: 1,
     fg: theme.text,
-    wrapMode: "none",
-    truncate: true,
+    wrapMode: "word",
   });
 
   dialog.content.add(msgText);

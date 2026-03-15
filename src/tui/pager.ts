@@ -121,15 +121,15 @@ export function buildPagerNodes(lineNode: TextRenderable, state: ReviewState, se
     // Gutter: cursor + indicator + line number (dimmed)
     lineNode.add(TextNodeRenderable.fromString(
       `${prefix}`,
-      { fg: isCursor ? theme.text : theme.textDim }
+      { fg: isCursor ? theme.text : theme.textDim, bg: isCursor ? theme.backgroundElement : undefined }
     ));
     lineNode.add(TextNodeRenderable.fromString(
       indicator,
-      { fg: indicatorColor }
+      { fg: indicatorColor, bg: isCursor ? theme.backgroundElement : undefined }
     ));
     lineNode.add(TextNodeRenderable.fromString(
       `${padLineNum(lineNum)}  `,
-      { fg: theme.textDim, attributes: TextAttributes.DIM }
+      { fg: theme.textDim, attributes: TextAttributes.DIM, bg: isCursor ? theme.backgroundElement : undefined }
     ));
 
     // Spec text — table or regular markdown
@@ -151,14 +151,24 @@ export function buildPagerNodes(lineNode: TextRenderable, state: ReviewState, se
         renderTableBorder(lineNode, tableBlock.colWidths, "bottom");
       }
     } else if (searchQuery) {
-      // When searching, show raw text with search markers (no markdown styling)
-      const regex = new RegExp(searchQuery.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
-      const highlighted = specText.replace(regex, (match) => `>>${match}<<`);
-      lineNode.add(TextNodeRenderable.fromString(highlighted, { fg: theme.text }));
+      // When searching, show colored match segments (no markdown styling)
+      const escaped = searchQuery.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const searchRegex = new RegExp(`(${escaped})`, "gi");
+      const parts = specText.split(searchRegex);
+      for (let p = 0; p < parts.length; p++) {
+        const part = parts[p];
+        if (part.length === 0) continue;
+        const isMatch = p % 2 === 1; // split with capture group: [before, match, between, match, after]
+        if (isMatch) {
+          lineNode.add(TextNodeRenderable.fromString(part, { fg: theme.base, bg: theme.yellow, attributes: TextAttributes.BOLD }));
+        } else {
+          lineNode.add(TextNodeRenderable.fromString(part, { fg: theme.text, bg: isCursor ? theme.backgroundElement : undefined }));
+        }
+      }
     } else {
       // Parse and render inline markdown
       const segments = parseMarkdownLine(specText);
-      addSegments(lineNode, segments, theme.text);
+      addSegments(lineNode, segments, theme.text, isCursor ? theme.backgroundElement : undefined);
     }
 
     // Thread hint (dimmed, inline)
@@ -166,7 +176,7 @@ export function buildPagerNodes(lineNode: TextRenderable, state: ReviewState, se
       const hint = threadHint(thread);
       lineNode.add(TextNodeRenderable.fromString(
         `  \u00ab ${hint}`,
-        { fg: theme.textDim, attributes: TextAttributes.DIM }
+        { fg: theme.textDim, attributes: TextAttributes.DIM, bg: isCursor ? theme.backgroundElement : undefined }
       ));
     }
 

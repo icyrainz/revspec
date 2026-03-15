@@ -77,7 +77,7 @@ export function parseMarkdownLine(line: string): StyledSegment[] {
   if (line.startsWith("> ")) {
     const inner = parseInlineMarkdown(line.slice(2));
     return [
-      { text: "\u2502 ", fg: theme.textDim },
+      { text: "\u2502 ", fg: theme.mauve },
       ...inner.map((s) => ({
         ...s,
         fg: s.fg ?? theme.textDim,
@@ -111,11 +111,12 @@ export function parseMarkdownLine(line: string): StyledSegment[] {
 /**
  * Add styled segments as TextNodeRenderable children to a parent.
  */
-export function addSegments(parent: TextRenderable, segments: StyledSegment[], defaultFg: string): void {
+export function addSegments(parent: TextRenderable, segments: StyledSegment[], defaultFg: string, bg?: string): void {
   for (const seg of segments) {
     const node = TextNodeRenderable.fromString(seg.text, {
       fg: seg.fg ?? defaultFg,
       attributes: seg.attributes,
+      bg,
     });
     parent.add(node);
   }

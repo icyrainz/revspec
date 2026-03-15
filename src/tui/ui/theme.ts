@@ -28,10 +28,10 @@ export const theme = {
 } as const;
 
 export const STATUS_ICONS: Record<string, string> = {
-  open: "\u258c",
-  pending: "\u258c",
-  resolved: "\u2713",
-  outdated: "\u258c",
+  open: "\u258c",     // ▌ half block
+  pending: "\u25cb",  // ○ circle
+  resolved: "\u2713", // ✓ checkmark
+  outdated: "\u223c", // ∼ tilde
 };
 
 export const SPLIT_BORDER = {

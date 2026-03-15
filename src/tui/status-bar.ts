@@ -32,7 +32,7 @@ export function buildTopBar(
   // Filename — bold
   t.add(TextNodeRenderable.fromString(` ${name}`, { fg: theme.text, attributes: TextAttributes.BOLD }));
 
-  t.add(TextNodeRenderable.fromString("  |  ", { fg: theme.textDim }));
+  t.add(TextNodeRenderable.fromString("  \u00b7  ", { fg: theme.textDim }));
 
   // Thread summary
   if (open > 0 || pending > 0) {
@@ -46,7 +46,7 @@ export function buildTopBar(
 
   // Unread replies
   if (unreadCount && unreadCount > 0) {
-    t.add(TextNodeRenderable.fromString("  |  ", { fg: theme.textDim }));
+    t.add(TextNodeRenderable.fromString("  \u00b7  ", { fg: theme.textDim }));
     t.add(TextNodeRenderable.fromString(
       `${unreadCount} new repl${unreadCount === 1 ? "y" : "ies"}`,
       { fg: theme.green, attributes: TextAttributes.BOLD }
@@ -55,12 +55,12 @@ export function buildTopBar(
 
   // Spec changed warning
   if (specChanged) {
-    t.add(TextNodeRenderable.fromString("  |  ", { fg: theme.textDim }));
+    t.add(TextNodeRenderable.fromString("  \u00b7  ", { fg: theme.textDim }));
     t.add(TextNodeRenderable.fromString("!! Spec changed externally", { fg: theme.red, attributes: TextAttributes.BOLD }));
   }
 
   // Cursor position
-  t.add(TextNodeRenderable.fromString("  |  ", { fg: theme.textDim }));
+  t.add(TextNodeRenderable.fromString("  \u00b7  ", { fg: theme.textDim }));
   t.add(TextNodeRenderable.fromString(`L${state.cursorLine}/${state.lineCount}`, { fg: theme.textMuted }));
 }
 
@@ -91,9 +91,7 @@ export function createTopBar(renderer: CliRenderer): TopBarComponents {
   const box = new BoxRenderable(renderer, {
     width: "100%",
     height: 1,
-    backgroundColor: theme.base,
-    border: ["bottom"],
-    borderColor: theme.border,
+    backgroundColor: theme.backgroundPanel,
   });
 
   const text = new TextRenderable(renderer, {
