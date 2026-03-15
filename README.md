@@ -1,10 +1,10 @@
 # Revspec
 
-A review tool for AI-generated spec documents. Unlike traditional spec review (human reviews, human author edits), the author here is an AI — it reads structured feedback and acts on every comment instantly.
+A review tool for AI-generated spec documents with real-time AI conversation. Comment on specific lines, get AI replies instantly, resolve discussions, and approve — all without leaving the terminal.
 
 ## Why
 
-When an AI generates a spec, the human review step breaks the agentic loop. You have to open the file separately, read it, then type unstructured feedback in the terminal. Revspec closes this loop with a TUI that lets you comment inline and outputs structured JSON the AI can act on immediately.
+When an AI generates a spec, the human review step breaks the agentic loop. You have to open the file separately, read it, then type unstructured feedback. Revspec closes this loop with a TUI that lets you comment inline and discuss with the AI in real-time — like a chatroom anchored to the spec.
 
 ## Install
 
@@ -27,67 +27,124 @@ cd revspec && bun install && bun link
 revspec spec.md
 ```
 
-Opens a TUI with two modes:
-
-- **Markdown mode** (default) — rendered markdown for reading. `j/k` scrolls.
-- **Line mode** (`m`) — line numbers + thread indicators for commenting.
+Opens a TUI in line mode with vim-style navigation. Press `c` on any line to open a thread and start commenting.
 
 ### Keybindings
 
 | Key | Action |
 |-----|--------|
-| `j/k` | Scroll down/up |
+| `j/k` | Move cursor down/up |
 | `gg` / `G` | Go to top / bottom |
 | `Ctrl+D/U` | Half page down/up |
 | `m` | Toggle markdown / line mode |
-| `c` | Comment on line / view thread / reply |
+| `c` | Open thread / comment on line |
 | `r` | Resolve thread (toggle) |
 | `R` | Resolve all pending |
 | `dd` | Delete draft comment (double-tap) |
 | `/` | Search |
 | `n/N` | Next/prev search match |
 | `]t/[t` | Next/prev thread |
+| `]r/[r` | Next/prev unread AI reply |
 | `l` | List threads |
 | `a` | Approve spec |
-| `:w` | Save draft |
-| `:q` | Quit (blocks if unsaved) |
-| `:wq` | Save and quit |
-| `:q!` | Quit without saving |
+| `:w` | Merge changes to review JSON |
+| `:wq` | Merge and quit |
+| `:q` | Quit (only if merged) |
+| `:q!` | Quit without merging |
 | `?` | Help |
 
-### Comment input
+### Thread popup
 
-`Tab` submits. `Enter` adds newline. `Esc` cancels.
+The thread popup has two modes:
 
-## Review Protocol
+- **Insert mode** — type your comment, `Tab` sends, `Esc` switches to normal mode
+- **Normal mode** — `j/k` and `Ctrl+D/U` scroll the conversation history, `c` to reply, `r` to resolve, `Esc` to close
 
-Revspec outputs a `.review.json` file next to the spec:
+## Live AI Integration
+
+Revspec supports real-time communication with AI coding tools (Claude Code, opencode, etc.) via two CLI subcommands:
+
+### `revspec watch <file.md>`
+
+Blocks until the reviewer adds comments, then returns them with spec context:
+
+```
+=== New Comments ===
+Thread: t1 (line 14)
+  Context:
+      12: The system uses polling...
+    > 14: it sends a notification via webhook.
+      16: resource state.
+  [reviewer]: this is unclear
+
+To reply: revspec reply spec.md t1 "<your response>"
+When done replying, run: revspec watch spec.md
+```
+
+### `revspec reply <file.md> <threadId> "<text>"`
+
+Sends an AI reply that appears instantly in the reviewer's TUI:
+
+```bash
+revspec reply spec.md t1 "Good point. I'll clarify the polling vs webhook distinction."
+```
+
+### The loop
+
+```
+1. AI generates spec
+2. AI launches: revspec spec.md (in tmux pane or separate terminal)
+3. AI runs: revspec watch spec.md (blocks)
+4. Reviewer comments on lines in the TUI
+5. Watch returns with comments → AI replies → watch again
+6. Reviewer resolves threads → approves
+7. AI reads review JSON, rewrites spec, launches new round
+8. Repeat until clean approval
+```
+
+### Claude Code skill
+
+Install the `/revspec` skill for Claude Code:
+
+```bash
+./scripts/install-skill.sh
+```
+
+Then use `/revspec` in Claude Code after generating a spec.
+
+## Protocol
+
+Communication happens through a JSONL file (`spec.review.live.jsonl`) — append-only, both sides write to it. On session end, events are merged into `spec.review.json`.
+
+### Event types
+
+```jsonl
+{"type":"comment","threadId":"t1","line":14,"author":"reviewer","text":"unclear","ts":1710400000}
+{"type":"reply","threadId":"t1","author":"owner","text":"I'll fix it","ts":1710400005}
+{"type":"resolve","threadId":"t1","author":"reviewer","ts":1710400010}
+{"type":"approve","author":"reviewer","ts":1710400050}
+```
+
+### Review JSON
 
 ```json
 {
   "file": "spec.md",
   "threads": [
     {
-      "id": "1",
-      "line": 12,
-      "status": "open",
+      "id": "t1",
+      "line": 14,
+      "status": "resolved",
       "messages": [
-        { "author": "human", "text": "why webhook not polling?" }
+        { "author": "reviewer", "text": "this is unclear", "ts": 1710400000 },
+        { "author": "owner", "text": "I'll restructure this section", "ts": 1710400005 }
       ]
     }
   ]
 }
 ```
 
-Thread statuses: `open` (needs AI attention), `pending` (AI replied), `resolved`, `outdated`.
-
-The AI reads this JSON, addresses comments, updates the spec, rewrites the review file with updated anchors/statuses, and re-invokes Revspec. The loop continues until the human approves.
-
-## Roadmap
-
-- **v1** (current): Built-in TUI pager
-- **v2**: Neovim plugin, web UI, diff highlighting
-- **v3**: Google Docs integration
+Thread statuses: `open` (owner's turn), `pending` (reviewer's turn), `resolved`, `outdated`.
 
 ## License
 
