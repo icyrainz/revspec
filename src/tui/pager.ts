@@ -46,11 +46,17 @@ export function buildPagerContent(state: ReviewState, searchQuery?: string | nul
       specText = specText.replace(regex, (match) => `>>${match}<<`);
     }
 
-    // Thread indicator goes left, next to line number
+    // Thread indicator — gutter bar on the left
     let indicator = " ";
     if (thread) {
       const isUnread = unreadThreadIds && unreadThreadIds.has(thread.id);
-      indicator = isUnread ? "+" : STATUS_ICONS[thread.status];
+      if (isUnread) {
+        indicator = "\u2588"; // █ full block — unread reply
+      } else if (thread.status === "resolved") {
+        indicator = "\u2713"; // ✓ resolved
+      } else {
+        indicator = "\u258c"; // ▌ half block — has thread
+      }
     }
 
     let line = `${prefix}${indicator}${padLineNum(lineNum)}  ${specText}`;

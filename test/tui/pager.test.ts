@@ -45,37 +45,38 @@ describe("buildPagerContent", () => {
     expect(lines[3]).toMatch(/^ /);
   });
 
-  it("shows status indicator for open threads", () => {
+  it("shows gutter indicator for open threads", () => {
     const state = new ReviewState(SPEC, [makeThread("t1", 2, "open")]);
     const content = buildPagerContent(state);
     const lines = content.split("\n");
 
-    // Line 2 should contain the open icon (*)
-    expect(lines[1]).toContain("*");
+    // Line 2 should contain the half block gutter ▌
+    expect(lines[1]).toContain("\u258c");
   });
 
-  it("shows status indicator for pending threads", () => {
+  it("shows gutter indicator for pending threads", () => {
     const state = new ReviewState(SPEC, [makeThread("t1", 2, "pending")]);
     const content = buildPagerContent(state);
     const lines = content.split("\n");
 
-    expect(lines[1]).toContain("~");
+    expect(lines[1]).toContain("\u258c");
   });
 
-  it("shows status indicator for resolved threads", () => {
+  it("shows checkmark for resolved threads", () => {
     const state = new ReviewState(SPEC, [makeThread("t1", 2, "resolved")]);
     const content = buildPagerContent(state);
     const lines = content.split("\n");
 
-    expect(lines[1]).toContain("\u2714");
+    expect(lines[1]).toContain("\u2713");
   });
 
-  it("shows status indicator for outdated threads", () => {
+  it("shows gutter indicator for outdated threads", () => {
     const state = new ReviewState(SPEC, [makeThread("t1", 2, "outdated")]);
     const content = buildPagerContent(state);
     const lines = content.split("\n");
 
-    expect(lines[1]).toContain("\u26A0");
+    // Outdated uses half block like open/pending
+    expect(lines[1]).toContain("\u258c");
   });
 
   it("shows different icons for different statuses", () => {
@@ -88,10 +89,10 @@ describe("buildPagerContent", () => {
     const content = buildPagerContent(state);
     const lines = content.split("\n");
 
-    expect(lines[0]).toContain("*");
-    expect(lines[1]).toContain("~");
-    expect(lines[2]).toContain("\u2714");
-    expect(lines[3]).toContain("\u26A0");
+    expect(lines[0]).toContain("\u258c"); // ▌ open
+    expect(lines[1]).toContain("\u258c"); // ▌ pending
+    expect(lines[2]).toContain("\u2713"); // ✓ resolved
+    expect(lines[3]).toContain("\u258c"); // ▌ outdated
   });
 
   it("shows thread hint with latest message text", () => {
