@@ -4,6 +4,10 @@ import { unlinkSync, existsSync } from "fs";
 
 const CLI = resolve(import.meta.dir, "../../bin/revspec.ts");
 
+// Configurable via env for CI (slower runners need more time)
+const WAIT_MS = parseInt(process.env.REVSPEC_E2E_WAIT_MS || "50", 10);
+const INIT_WAIT_MS = parseInt(process.env.REVSPEC_E2E_INIT_WAIT_MS || "150", 10);
+
 function stripAnsi(str: string): string {
   return str
     .replace(/\x1bP(?:[^\x1b]|\x1b[^\\])*\x1b\\/g, "")
@@ -44,7 +48,7 @@ export async function createHarness(specFile: string, opts?: { cols?: number; ro
 
   function sendKeys(keys: string): void { pty.write(keys); }
 
-  function wait(ms = 50): Promise<void> {
+  function wait(ms = WAIT_MS): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
@@ -75,7 +79,7 @@ export async function createHarness(specFile: string, opts?: { cols?: number; ro
   }
 
   // Wait for initial render
-  await wait(150);
+  await wait(INIT_WAIT_MS);
 
   return { sendKeys, wait, capture, contains, quit, cleanReviewFiles };
 }

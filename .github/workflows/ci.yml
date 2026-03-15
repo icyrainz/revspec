@@ -16,3 +16,7 @@ jobs:
           bun-version: latest
       - run: bun install
       - run: bun run test
+      - run: bun run test:e2e
+        env:
+          REVSPEC_E2E_WAIT_MS: "200"
+          REVSPEC_E2E_INIT_WAIT_MS: "500"
