@@ -28,89 +28,12 @@ export interface CommentInputOverlay {
 
 export function createCommentInput(opts: CommentInputOptions): CommentInputOverlay {
   const { renderer, line, existingThread, onSubmit, onResolve, onCancel } = opts;
-  const hasThread = existingThread && existingThread.messages.length > 0;
-
-  if (!hasThread) {
-    return createNewComment(renderer, line, onSubmit, onCancel);
-  }
-  return createThreadView(renderer, line, existingThread!, onSubmit, onResolve, onCancel);
+  // Always use thread view — even for new comments (empty history, just the input)
+  const thread = existingThread ?? { id: "", line, status: "open" as const, messages: [] };
+  return createThreadView(renderer, line, thread, onSubmit, onResolve, onCancel);
 }
 
-// --- New comment: insert-only buffer, Tab submits and closes ---
-function createNewComment(
-  renderer: CliRenderer,
-  line: number,
-  onSubmit: (text: string) => void,
-  onCancel: () => void,
-): CommentInputOverlay {
-  const container = new BoxRenderable(renderer, {
-    position: "absolute",
-    top: "30%",
-    left: "10%",
-    width: "80%",
-    height: 10,
-    zIndex: 100,
-    backgroundColor: theme.base,
-    border: true,
-    borderStyle: "single",
-    borderColor: theme.borderComment,
-    title: ` New comment on line ${line} `,
-    flexDirection: "column",
-    padding: 1,
-  });
-
-  const textarea = new TextareaRenderable(renderer, {
-    width: "100%",
-    flexGrow: 1,
-    backgroundColor: theme.surface0,
-    textColor: theme.text,
-    focusedBackgroundColor: theme.surface0,
-    focusedTextColor: theme.text,
-    wrapMode: "word",
-    placeholder: "Type your comment...",
-    placeholderColor: theme.overlay,
-    initialValue: "",
-  });
-
-  const hint = new TextRenderable(renderer, {
-    content: " [Tab] submit  [Esc] cancel",
-    width: "100%",
-    height: 1,
-    fg: theme.hintFg,
-    bg: theme.hintBg,
-    wrapMode: "none",
-    truncate: true,
-  });
-
-  container.add(textarea);
-  container.add(hint);
-  setTimeout(() => { textarea.focus(); renderer.requestRender(); }, 0);
-
-  let submitted = false;
-  const keyHandler = (key: KeyEvent) => {
-    if (key.name === "escape") {
-      key.preventDefault(); key.stopPropagation(); onCancel(); return;
-    }
-    if (key.name === "tab") {
-      key.preventDefault(); key.stopPropagation();
-      if (submitted) return;
-      submitted = true;
-      const text = textarea.plainText.trim();
-      if (text.length > 0) onSubmit(text); else onCancel();
-      return;
-    }
-  };
-  renderer.keyInput.on("keypress", keyHandler);
-
-  return {
-    container,
-    cleanup() { renderer.keyInput.off("keypress", keyHandler); textarea.destroy(); },
-    addMessage() {},
-    threadId: null,
-  };
-}
-
-// --- Thread view: two modes (normal/insert), unified buffer ---
+// --- Unified thread view: works for both new comments and existing threads ---
 function createThreadView(
   renderer: CliRenderer,
   line: number,
@@ -130,7 +53,7 @@ function createThreadView(
     border: true,
     borderStyle: "single",
     borderColor: theme.borderComment,
-    title: ` Thread #${thread.id} (line ${line}) `,
+    title: thread.id ? ` Thread #${thread.id} (line ${line}) ` : ` New comment on line ${line} `,
     flexDirection: "column",
     padding: 1,
   });
