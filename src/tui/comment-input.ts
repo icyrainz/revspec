@@ -274,7 +274,6 @@ function createThreadView(
         return;
 
       case "c":
-      case "i":
         enterInsert();
         return;
 
