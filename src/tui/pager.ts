@@ -81,6 +81,9 @@ export function buildPagerNodes(lineNode: TextRenderable, state: ReviewState, se
     }
   }
 
+  // Track fenced code block state
+  let inCodeBlock = false;
+
   for (let i = 0; i < state.specLines.length; i++) {
     const lineNum = i + 1;
     const thread = state.threadAtLine(lineNum);
@@ -132,8 +135,21 @@ export function buildPagerNodes(lineNode: TextRenderable, state: ReviewState, se
       { fg: theme.textDim, attributes: TextAttributes.DIM, bg: isCursor ? theme.backgroundElement : undefined }
     ));
 
-    // Spec text — table or regular markdown
-    if (isTable) {
+    // Spec text — fenced code block, table, or regular markdown
+    if (specText.trimStart().startsWith("```")) {
+      inCodeBlock = !inCodeBlock;
+      // Render the fence line itself as dim
+      lineNode.add(TextNodeRenderable.fromString(specText, {
+        fg: theme.textDim,
+        bg: isCursor ? theme.backgroundElement : undefined,
+      }));
+    } else if (inCodeBlock) {
+      // Inside code block — render as green, no markdown parsing
+      lineNode.add(TextNodeRenderable.fromString(specText, {
+        fg: theme.green,
+        bg: isCursor ? theme.backgroundElement : undefined,
+      }));
+    } else if (isTable) {
       if (relIdx === tableBlock.separatorIndex) {
         // Separator row → box-drawing line
         renderTableSeparator(lineNode, tableBlock.colWidths);

@@ -29,6 +29,19 @@ revspec spec.md
 
 Opens a TUI in line mode with vim-style navigation. Press `c` on any line to open a thread and start commenting.
 
+### Markdown rendering
+
+Revspec renders markdown in-place (toggle with `m`):
+
+- **Headings** — colored and bold, `#`–`######`
+- **Inline** — bold (`**`/`__`), italic (`*`/`_`), bold-italic (`***`), strikethrough (`~~`), `code`, [links](url)
+- **Fenced code blocks** — fence markers dimmed, body in green
+- **Tables** — box-drawing borders, header row bolded, auto-column-widths
+- **Lists** — unordered (`•`), ordered, task lists (`☐`/`☑`)
+- **Blockquotes** — bar gutter, italicized text
+- **Cursor line** highlighting across all elements
+- **Search highlights** — colored match segments
+
 ### Keybindings
 
 | Key | Action |

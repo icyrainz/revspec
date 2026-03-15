@@ -14,13 +14,22 @@ export interface StyledSegment {
 }
 
 /**
- * Parse inline markdown (bold, italic, code) into styled segments.
+ * Parse inline markdown (bold italic, bold, italic, code, links, strikethrough) into styled segments.
  * Strips syntax markers and returns display text with style info.
+ * Order matters: longer patterns first (***bold italic*** before **bold** before *italic*).
  */
 export function parseInlineMarkdown(text: string): StyledSegment[] {
   const segments: StyledSegment[] = [];
-  // Order matters: **bold** before *italic*
-  const regex = /(\*\*(.+?)\*\*|\*(.+?)\*|`([^`]+)`)/g;
+  // Groups:
+  //   2: ***bold italic***
+  //   3: **bold**
+  //   4: *italic*
+  //   5: __bold__
+  //   6: _italic_
+  //   7: ~~strikethrough~~
+  //   8: [link text](url) — display text only
+  //   9: `code`
+  const regex = /(\*\*\*(.+?)\*\*\*|\*\*(.+?)\*\*|\*(.+?)\*|__(.+?)__|_(.+?)_|~~(.+?)~~|\[([^\]]+)\]\([^)]+\)|`([^`]+)`)/g;
   let pos = 0;
   let match;
   while ((match = regex.exec(text)) !== null) {
@@ -28,14 +37,29 @@ export function parseInlineMarkdown(text: string): StyledSegment[] {
       segments.push({ text: text.slice(pos, match.index) });
     }
     if (match[2] !== undefined) {
-      // **bold**
-      segments.push({ text: match[2], attributes: TextAttributes.BOLD });
+      // ***bold italic***
+      segments.push({ text: match[2], attributes: TextAttributes.BOLD | TextAttributes.ITALIC });
     } else if (match[3] !== undefined) {
-      // *italic*
-      segments.push({ text: match[3], attributes: TextAttributes.ITALIC });
+      // **bold**
+      segments.push({ text: match[3], attributes: TextAttributes.BOLD });
     } else if (match[4] !== undefined) {
+      // *italic*
+      segments.push({ text: match[4], attributes: TextAttributes.ITALIC });
+    } else if (match[5] !== undefined) {
+      // __bold__
+      segments.push({ text: match[5], attributes: TextAttributes.BOLD });
+    } else if (match[6] !== undefined) {
+      // _italic_
+      segments.push({ text: match[6], attributes: TextAttributes.ITALIC });
+    } else if (match[7] !== undefined) {
+      // ~~strikethrough~~ — dim as fallback (terminal strikethrough unreliable)
+      segments.push({ text: match[7], attributes: TextAttributes.DIM });
+    } else if (match[8] !== undefined) {
+      // [link text](url) — show text in blue + underline
+      segments.push({ text: match[8], fg: theme.blue, attributes: TextAttributes.UNDERLINE });
+    } else if (match[9] !== undefined) {
       // `code`
-      segments.push({ text: match[4], fg: theme.green });
+      segments.push({ text: match[9], fg: theme.green });
     }
     pos = match.index + match[0].length;
   }
@@ -83,6 +107,18 @@ export function parseMarkdownLine(line: string): StyledSegment[] {
         fg: s.fg ?? theme.textDim,
         attributes: (s.attributes ?? 0) | TextAttributes.ITALIC,
       })),
+    ];
+  }
+
+  // Task list: - [ ] or - [x]
+  const taskMatch = line.match(/^(\s*)[-*+]\s+\[([ xX])\]\s+(.*)/);
+  if (taskMatch) {
+    const checked = taskMatch[2].toLowerCase() === "x";
+    const checkbox = checked ? "\u2611 " : "\u2610 "; // ☑ or ☐
+    const color = checked ? theme.green : theme.textDim;
+    return [
+      { text: taskMatch[1] + checkbox, fg: color },
+      ...parseInlineMarkdown(taskMatch[3]),
     ];
   }
 
@@ -137,10 +173,15 @@ export function parseTableCells(line: string): string[] {
 
 /** Compute the display width of a string (strips inline markdown markers). */
 export function displayWidth(text: string): number {
-  // Remove **bold**, *italic*, `code` markers to get display length
+  // Remove all inline markdown markers to get display length
   return text
+    .replace(/\*\*\*(.+?)\*\*\*/g, "$1")
     .replace(/\*\*(.+?)\*\*/g, "$1")
     .replace(/\*(.+?)\*/g, "$1")
+    .replace(/__(.+?)__/g, "$1")
+    .replace(/_(.+?)_/g, "$1")
+    .replace(/~~(.+?)~~/g, "$1")
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
     .replace(/`([^`]+)`/g, "$1")
     .length;
 }
