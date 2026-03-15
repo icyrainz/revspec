@@ -1,17 +1,18 @@
 ---
 name: revspec
-description: Launch revspec to review a spec document with real-time AI feedback. Use when the user says /revspec, "review the spec", "let me review this", or after generating a spec/design document that needs human review. Also use when a brainstorming or writing-plans skill produces a markdown spec file.
+description: Launch revspec to review a spec document with real-time AI feedback. Use when the user says /revspec, "review the spec", "let me review this", or after generating a spec/design document that needs human review. Also use when a brainstorming or writing-plans skill produces a markdown spec file. Works on any markdown file (ADRs, READMEs, etc.) but primarily designed for spec review. Works even when no .md file exists yet (inline or plan mode content gets saved to a file first). Supports `/revspec <path>` to review a specific file and resuming previous review sessions.
 ---
 
 # Revspec — Live Spec Review
 
-Launch revspec to let the human review a spec document with real-time AI conversation. The reviewer comments on specific lines, you reply instantly, and the discussion continues until the spec is approved.
+Launch revspec to let the human review a spec document with real-time AI conversation. The reviewer comments on specific lines, you reply instantly, and the discussion continues until the spec is approved. Also works on any markdown file.
 
 ## When to Use
 
 - After writing or updating a spec/design document
 - When the user explicitly asks to review a spec
 - After the brainstorming or writing-plans skill produces a `.md` file
+- When the user provides a file path: `/revspec <path>`
 
 ## How It Works
 
@@ -21,12 +22,22 @@ You and the human communicate through revspec's CLI:
 
 The reviewer stays in the revspec TUI for the entire session. You run the watch/reply loop.
 
-## Step 1: Find the Spec File
+## Step 1: Find or Create the File
 
-Detect which spec was recently created or modified in this conversation. Look for:
+**If a file path was provided** (e.g., `/revspec docs/my-spec.md`):
+Use it directly — skip the search below.
+
+**Otherwise**, detect which file was recently created or modified in this conversation:
 - Files written to `docs/superpowers/specs/*.md`
 - The last `.md` file you created or edited
-- If ambiguous, ask the user which file to review
+
+**If the content was written inline** (proposed in conversation output or plan mode, never saved to a file):
+1. Save the content to a `.md` file — use `docs/superpowers/specs/<topic>.md` or a reasonable path in the project
+2. Confirm the file path with the user before proceeding
+
+If ambiguous, ask the user which file to review.
+
+**Resuming a previous review:** Check if a `.review.jsonl` file already exists for the target file (e.g., `spec.review.jsonl`). If it does, the TUI will restore previous threads automatically — let the user know they're resuming where they left off.
 
 ## Step 2: Launch Revspec
 
