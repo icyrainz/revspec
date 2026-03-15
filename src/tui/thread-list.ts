@@ -120,7 +120,7 @@ export function createThreadList(opts: ThreadListOptions): ThreadListOverlay {
         onCancel();
         return;
       }
-      if (key.name === "return") {
+      if (key.name === "return" || key.name === "y") {
         key.preventDefault();
         key.stopPropagation();
         const selected = select.getSelectedOption();
