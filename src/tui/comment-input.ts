@@ -71,7 +71,7 @@ export function createCommentInput(opts: CommentInputOptions): CommentInputOverl
 
     const lines: string[] = [];
     for (const msg of existingThread!.messages) {
-      const authorLabel = msg.author === "human" ? "You" : " AI";
+      const authorLabel = msg.author === "reviewer" ? "You" : " AI";
       lines.push(`${authorLabel}:`);
       for (const textLine of msg.text.split("\n")) {
         lines.push(`  ${textLine}`);

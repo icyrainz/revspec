@@ -8,7 +8,7 @@ function makeThread(
   id: string,
   line: number,
   status: Thread["status"],
-  messages: Thread["messages"] = [{ author: "human", text: "comment" }]
+  messages: Thread["messages"] = [{ author: "reviewer", text: "comment" }]
 ): Thread {
   return { id, line, status, messages };
 }
@@ -40,7 +40,7 @@ describe("ReviewState", () => {
       expect(state.threads[0].status).toBe("open");
       expect(state.threads[0].messages).toHaveLength(1);
       expect(state.threads[0].messages[0]).toEqual({
-        author: "human",
+        author: "reviewer",
         text: "needs clarification",
       });
     });
@@ -58,7 +58,7 @@ describe("ReviewState", () => {
       state.replyToThread("t1", "my reply");
       expect(state.threads[0].messages).toHaveLength(2);
       expect(state.threads[0].messages[1]).toEqual({
-        author: "human",
+        author: "reviewer",
         text: "my reply",
       });
     });
@@ -265,14 +265,14 @@ describe("ReviewState", () => {
           line: 1,
           status: "open",
           messages: [
-            { author: "ai", text: "AI response" },
-            { author: "human", text: "my draft" },
+            { author: "owner", text: "AI response" },
+            { author: "reviewer", text: "my draft" },
           ],
         },
       ]);
       state.deleteLastDraftMessage("t1");
       expect(state.threads[0].messages).toHaveLength(1);
-      expect(state.threads[0].messages[0].author).toBe("ai");
+      expect(state.threads[0].messages[0].author).toBe("owner");
     });
 
     it("removes the thread entirely when it becomes empty", () => {
@@ -281,7 +281,7 @@ describe("ReviewState", () => {
           id: "t1",
           line: 1,
           status: "open",
-          messages: [{ author: "human", text: "only message" }],
+          messages: [{ author: "reviewer", text: "only message" }],
         },
       ]);
       state.deleteLastDraftMessage("t1");

@@ -9,7 +9,7 @@ function makeThread(
   id: string,
   line: number,
   status: Thread["status"],
-  messages: Thread["messages"] = [{ author: "human", text: "comment" }]
+  messages: Thread["messages"] = [{ author: "reviewer", text: "comment" }]
 ): Thread {
   return { id, line, status, messages };
 }
@@ -97,8 +97,8 @@ describe("buildPagerContent", () => {
   it("shows thread hint with latest message text", () => {
     const state = new ReviewState(SPEC, [
       makeThread("t1", 2, "open", [
-        { author: "ai", text: "AI said something" },
-        { author: "human", text: "My response" },
+        { author: "owner", text: "AI said something" },
+        { author: "reviewer", text: "My response" },
       ]),
     ]);
     const content = buildPagerContent(state);
@@ -111,7 +111,7 @@ describe("buildPagerContent", () => {
     const longText =
       "This is a very long comment that should be truncated because it exceeds the maximum hint length";
     const state = new ReviewState(SPEC, [
-      makeThread("t1", 2, "open", [{ author: "human", text: longText }]),
+      makeThread("t1", 2, "open", [{ author: "reviewer", text: longText }]),
     ]);
     const content = buildPagerContent(state);
     const lines = content.split("\n");

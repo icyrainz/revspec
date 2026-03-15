@@ -28,7 +28,7 @@ export class ReviewState {
       id: this.nextThreadId(),
       line,
       status: "open",
-      messages: [{ author: "human", text }],
+      messages: [{ author: "reviewer", text }],
     };
     this.threads.push(thread);
   }
@@ -36,7 +36,7 @@ export class ReviewState {
   replyToThread(threadId: string, text: string): void {
     const thread = this.threads.find((t) => t.id === threadId);
     if (!thread) return;
-    thread.messages.push({ author: "human", text });
+    thread.messages.push({ author: "reviewer", text });
     thread.status = "open";
   }
 
@@ -118,7 +118,7 @@ export class ReviewState {
 
     // Find and remove the last human message
     for (let i = thread.messages.length - 1; i >= 0; i--) {
-      if (thread.messages[i].author === "human") {
+      if (thread.messages[i].author === "reviewer") {
         thread.messages.splice(i, 1);
         break;
       }

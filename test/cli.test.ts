@@ -94,7 +94,7 @@ describe("CLI entry point", () => {
           id: "t1",
           line: 5,
           status: "open",
-          messages: [{ author: "human", text: "This needs clarification" }],
+          messages: [{ author: "reviewer", text: "This needs clarification" }],
         },
       ],
     };
