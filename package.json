@@ -1,10 +1,24 @@
 {
   "name": "revspec",
-  "version": "0.6.0",
+  "version": "0.7.0",
+  "description": "Terminal-based spec review tool with real-time AI conversation",
   "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/icyrainz/revspec.git"
+  },
+  "keywords": ["spec", "review", "tui", "ai", "claude", "vim", "terminal"],
   "bin": {
     "revspec": "./bin/revspec.ts"
   },
+  "files": [
+    "bin/",
+    "src/",
+    "skills/",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "start": "bun run bin/revspec.ts",
     "test": "bun test test/unit test/integration",

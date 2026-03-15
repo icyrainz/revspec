@@ -31,7 +31,7 @@ if (subcommand === "reply") {
 }
 
 if (args.length === 0 || args.includes("--help") || args.includes("-h")) {
-  console.log("Usage: revspec <file.md> [--tui|--nvim|--web]");
+  console.log("Usage: revspec <file.md>");
   process.exit(0);
 }
 

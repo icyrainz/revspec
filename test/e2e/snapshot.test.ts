@@ -109,7 +109,7 @@ describe("revspec E2E snapshots", () => {
 
   test("T opens thread list", async () => {
     harness = await createHarness(SPEC);
-    harness.sendKeys("T");
+    harness.sendKeys("t");
     await harness.wait();
     expect(harness.capture()).toMatchSnapshot();
   });

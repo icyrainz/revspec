@@ -21,7 +21,6 @@ import {
   type BottomBarComponents,
 } from "./status-bar";
 import { createCommentInput } from "./comment-input";
-// thread-expand removed — merged into comment-input
 import { createSearch } from "./search";
 import { createThreadList } from "./thread-list";
 import { createConfirm } from "./confirm";
@@ -430,8 +429,7 @@ export async function runTui(
             // exitTui already called destroy+resolve
             return;
           }
-          // "stay" — don't refreshPager here, processCommand handles its own bar updates
-          // (e.g., :w shows "saved" briefly before refreshing via setTimeout)
+          // "stay" — processCommand handles its own bar updates
           return;
         }
         if (key.name === "escape") {

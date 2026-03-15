@@ -56,16 +56,15 @@ revspec watch <spec-file>
 This blocks until the reviewer adds comments. When it returns, you'll see output like:
 
 ```
---- New threads ---
-
-[x1a3f] line 14 (new):
+=== New Comments ===
+Thread: x1a3f (line 14)
   Context:
-    12: The system uses polling...
-   >14: it sends a notification via webhook.
-    16: resource state.
-  Comment: "this is unclear"
+      12: The system uses polling...
+    > 14: it sends a notification via webhook.
+      16: resource state.
+  [reviewer]: this is unclear
+  To reply: revspec reply spec.md x1a3f "<your reply>"
 
-To reply: revspec reply spec.md <threadId> "<your response>"
 When done replying, run: revspec watch spec.md
 ```
 
