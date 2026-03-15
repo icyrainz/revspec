@@ -72,8 +72,8 @@ export function createHelp(opts: {
   addHelpSection(dialog.content, renderer, "Quick Start", [
     "  Navigate to a line and press c to comment.",
     "  The AI replies in real-time via the thread popup.",
-    "  Press r to resolve threads, a to approve the spec.",
-    "  Use :wq to save and quit when done reviewing.",
+    "  Press r to resolve, S to submit for rewrite.",
+    "  Press A to approve when done.",
   ]);
 
   addHelpSection(dialog.content, renderer, "Thread Popup", [
