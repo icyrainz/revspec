@@ -200,6 +200,8 @@ export async function runTui(
 
   function mergeAndExit(resolve: () => void): void {
     doMerge();
+    // Signal to watch process that session has ended
+    appendEvent(jsonlPath, { type: "session-end", author: "reviewer", ts: Date.now() });
     liveWatcher.stop();
     renderer.destroy();
     resolve();
@@ -249,11 +251,13 @@ export async function runTui(
         setTimeout(() => { refreshPager(); }, 2000);
         return "stay";
       }
+      appendEvent(jsonlPath, { type: "session-end", author: "reviewer", ts: Date.now() });
       liveWatcher.stop();
       return "exit";
     }
     if (cmd === "q!") {
       // Exit without merging
+      appendEvent(jsonlPath, { type: "session-end", author: "reviewer", ts: Date.now() });
       liveWatcher.stop();
       return "exit";
     }

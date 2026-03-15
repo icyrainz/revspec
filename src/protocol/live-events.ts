@@ -8,7 +8,8 @@ export type LiveEventType =
   | "unresolve"
   | "approve"
   | "delete"
-  | "round";
+  | "round"
+  | "session-end";
 
 export interface LiveEvent {
   type: LiveEventType;

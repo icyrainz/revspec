@@ -193,6 +193,12 @@ function processNewEvents(
     return { approved: true, output: "", newOffset };
   }
 
+  // Check for session-end — TUI exited, break the loop
+  const hasSessionEnd = events.some((e) => e.type === "session-end");
+  if (hasSessionEnd) {
+    return { approved: false, output: "Session ended. Reviewer exited revspec.\n", newOffset };
+  }
+
   // Only return actionable events — comments and replies that need an LLM response.
   // Resolves, unresolves, and deletes are informational — no reply needed.
   const actionableEvents = events.filter(
