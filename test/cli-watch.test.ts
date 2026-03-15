@@ -139,18 +139,14 @@ describe("revspec watch", () => {
     expect(result.stdout).toContain("Great, looks good now");
   });
 
-  it("shows resolved threads separately", async () => {
+  it("does not break watch loop for resolve-only events", async () => {
     tmpDir = setupTempDir();
     const { specPath, jsonlPath } = createSpecWithJsonl(tmpDir);
 
     const threadId = "thread-003";
     const ts = Date.now();
 
-    // First, write comment and resolve into JSONL so offset file gets written
-    // We simulate: first watch picks up comment, second watch picks up resolve
-    // For simplicity we start with the resolve event appearing after offset
-
-    // Write comment event first (offset will advance past this)
+    // Write comment then resolve
     appendEvent(jsonlPath, {
       type: "comment",
       threadId,
@@ -160,10 +156,12 @@ describe("revspec watch", () => {
       ts,
     });
 
-    // Run watch once to advance offset past the comment
-    await runCli(["watch", specPath]);
+    // First watch picks up the comment
+    const result1 = await runCli(["watch", specPath]);
+    expect(result1.exitCode).toBe(0);
+    expect(result1.stdout).toContain("Fix this please");
 
-    // Now append a resolve event
+    // Append resolve — watch should return empty (no actionable events)
     appendEvent(jsonlPath, {
       type: "resolve",
       threadId,
@@ -171,13 +169,9 @@ describe("revspec watch", () => {
       ts: ts + 1000,
     });
 
-    // Run watch again — should show resolved section
-    const result = await runCli(["watch", specPath]);
-
-    expect(result.exitCode).toBe(0);
-    expect(result.stdout).toContain("Resolved");
-    expect(result.stdout).toContain(threadId);
-    expect(result.stdout).toContain("resolved");
+    const result2 = await runCli(["watch", specPath]);
+    // No output — resolve is not actionable
+    expect(result2.stdout.trim()).toBe("");
   });
 
   it("exits 1 for missing spec file", async () => {

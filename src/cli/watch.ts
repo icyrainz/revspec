@@ -193,12 +193,13 @@ function processNewEvents(
     return { approved: true, output: "", newOffset };
   }
 
-  // Filter to reviewer events only — don't show AI's own replies back to the AI
-  const reviewerEvents = events.filter(
-    (e) => e.author === "reviewer" && e.type !== "approve" && e.type !== "round"
+  // Only return actionable events — comments and replies that need an LLM response.
+  // Resolves, unresolves, and deletes are informational — no reply needed.
+  const actionableEvents = events.filter(
+    (e) => e.author === "reviewer" && (e.type === "comment" || e.type === "reply")
   );
 
-  if (reviewerEvents.length === 0) {
+  if (actionableEvents.length === 0) {
     return { approved: false, output: "", newOffset };
   }
 
@@ -208,7 +209,7 @@ function processNewEvents(
   const threadsById = new Map(allThreads.map((t) => [t.id, t]));
 
   const output = formatWatchOutput(
-    reviewerEvents,
+    actionableEvents,
     threadsById,
     specLines,
     specPath

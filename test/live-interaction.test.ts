@@ -160,27 +160,21 @@ describe("live interaction: multi-turn conversation", () => {
     expect(watch2.stdout.trim()).toBe("")
   })
 
-  it("watch with mixed events: groups comment, reply, resolve, delete correctly", async () => {
+  it("watch only returns actionable events (comments and replies), ignores resolves and deletes", async () => {
     // Set up: write comment and advance offset past it
     appendEvent(jsonlPath, {
       type: "comment", threadId: "t1", line: 3,
-      author: "reviewer", text: "comment to resolve", ts: 1000,
+      author: "reviewer", text: "initial comment", ts: 1000,
     })
-    appendEvent(jsonlPath, {
-      type: "comment", threadId: "t2", line: 5,
-      author: "reviewer", text: "comment to delete", ts: 1001,
-    })
-
-    // Advance offset past the initial comments
     await runCli(["watch", specPath])
 
-    // Now append mixed batch: resolve t1, delete t2, new comment t3, new reply to t3
+    // Append mixed batch: resolve + delete (non-actionable) + new comment + reply (actionable)
     appendEvent(jsonlPath, {
       type: "resolve", threadId: "t1",
       author: "reviewer", ts: 2000,
     })
     appendEvent(jsonlPath, {
-      type: "delete", threadId: "t2",
+      type: "delete", threadId: "t1",
       author: "reviewer", ts: 2001,
     })
     appendEvent(jsonlPath, {
@@ -195,18 +189,14 @@ describe("live interaction: multi-turn conversation", () => {
     const result = await runCli(["watch", specPath])
     expect(result.exitCode).toBe(0)
 
-    // Verify sections are present
+    // Only actionable sections appear
     expect(result.stdout).toContain("New Comments")
     expect(result.stdout).toContain("Replies")
-    expect(result.stdout).toContain("Resolved")
-    expect(result.stdout).toContain("Deleted")
+    expect(result.stdout).not.toContain("Resolved")
+    expect(result.stdout).not.toContain("Deleted")
 
-    // Verify thread contents appear in correct sections
-    expect(result.stdout).toContain("fresh comment")         // in New Comments
-    expect(result.stdout).toContain("actually not resolved") // in Replies
-    expect(result.stdout).toContain("t1")
-    expect(result.stdout).toContain("t2")
-    expect(result.stdout).toContain("t3")
+    expect(result.stdout).toContain("fresh comment")
+    expect(result.stdout).toContain("actually not resolved")
   })
 })
 
