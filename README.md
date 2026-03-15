@@ -23,19 +23,18 @@ cd revspec && bun install && bun link
 
 ### Claude Code plugin
 
-Install the `/revspec` skill and command for Claude Code:
+Install the `/revspec` skill for Claude Code:
 
 ```bash
 /plugin marketplace add icyrainz/revspec
 /plugin install revspec
 ```
 
-Or manually (symlinks, stays updated with repo):
+Or manually (symlink, stays updated with repo):
 
 ```bash
-mkdir -p ~/.claude/skills ~/.claude/commands
+mkdir -p ~/.claude/skills
 ln -sfn /path/to/revspec/skills/revspec ~/.claude/skills/revspec
-ln -sfn /path/to/revspec/commands/revspec.md ~/.claude/commands/revspec.md
 ```
 
 ## Usage
