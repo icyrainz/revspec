@@ -263,7 +263,7 @@ export async function runTui(
   // --- Overlay launchers ---
 
   function showCommentInput(): void {
-    const existingThread = state.threadAtLine(state.cursorLine);
+    let existingThread = state.threadAtLine(state.cursorLine);
 
     const overlay = createCommentInput({
       renderer,
@@ -278,13 +278,19 @@ export async function runTui(
           refreshPager();
           // Don't dismiss — overlay stays open, message appended by comment-input
         } else {
-          // New comment — close overlay
+          // New comment — create thread, stay open
           state.addComment(state.cursorLine, text);
           const newThread = state.threadAtLine(state.cursorLine);
           if (newThread) {
             appendEvent(jsonlPath, { type: "comment", threadId: newThread.id, line: state.cursorLine, author: "reviewer", text, ts: Date.now() });
+            // Update overlay to reference the new thread
+            if (activeOverlay) {
+              activeOverlay.threadId = newThread.id;
+              activeOverlay.container.title = ` Thread #${newThread.id} (line ${state.cursorLine}) `;
+            }
+            existingThread = newThread;
           }
-          dismissOverlay();
+          refreshPager();
         }
       },
       onResolve: () => {
