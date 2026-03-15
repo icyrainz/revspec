@@ -18,16 +18,18 @@ export function buildTopBarText(
   specFile: string,
   state: ReviewState,
   unreadCount?: number,
-  specChanged?: boolean
+  specChanged?: boolean,
+  mode?: "markdown" | "line"
 ): string {
   const name = basename(specFile);
+  const modeLabel = mode === "markdown" ? "[md]" : mode === "line" ? "[line]" : "";
   const { open, pending } = state.activeThreadCount();
   const parts: string[] = [];
   if (open > 0) parts.push(`${open} open`);
   if (pending > 0) parts.push(`${pending} pending`);
   const threadSummary =
     parts.length > 0 ? `Threads: ${parts.join(", ")}` : "No active threads";
-  let result = ` ${name}  |  ${threadSummary}`;
+  let result = ` ${name}  ${modeLabel}  |  ${threadSummary}`;
   if (unreadCount && unreadCount > 0) {
     result += ` | ${unreadCount} new repl${unreadCount === 1 ? "y" : "ies"}`;
   }
@@ -43,12 +45,11 @@ export function buildTopBarText(
  * Contextually shows command buffer when in command mode.
  * Prepends mode indicator when provided.
  */
-export function buildBottomBarText(commandBuffer: string | null, mode?: "markdown" | "line"): string {
-  const modeLabel = mode === "markdown" ? "[md]" : mode === "line" ? "[line]" : "";
+export function buildBottomBarText(commandBuffer: string | null): string {
   if (commandBuffer !== null) {
-    return ` ${modeLabel} :${commandBuffer}`;
+    return ` :${commandBuffer}`;
   }
-  return ` ${modeLabel}  j/k:move  c:comment  r:resolve  /:search  ?:help`;
+  return ` [j/k] move  [c] comment  [r] resolve  [/] search  [?] help`;
 }
 
 /**

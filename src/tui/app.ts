@@ -131,8 +131,8 @@ export async function runTui(
     } else {
       pager.markdownNode.content = state.specLines.join("\n");
     }
-    topBar.bar.content = buildTopBarText(specFile, state, state.unreadCount(), specMtimeChanged);
-    bottomBar.bar.content = buildBottomBarText(commandBuffer, pager.mode);
+    topBar.bar.content = buildTopBarText(specFile, state, state.unreadCount(), specMtimeChanged, pager.mode);
+    bottomBar.bar.content = buildBottomBarText(commandBuffer);
     renderer.requestRender();
   }
 
