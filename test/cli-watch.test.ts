@@ -189,4 +189,34 @@ describe("revspec watch", () => {
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toContain("not found");
   });
+
+  it("exits 3 when another watch is running (lock file with live PID)", async () => {
+    tmpDir = setupTempDir();
+    const { specPath, jsonlPath } = createSpecWithJsonl(tmpDir);
+    const lockPath = join(tmpDir, "spec.review.live.lock");
+    writeFileSync(lockPath, String(process.pid)); // current process is alive
+    appendEvent(jsonlPath, { type: "comment", threadId: "t1", line: 1, author: "reviewer", text: "x", ts: 1 });
+
+    const proc = Bun.spawn(["bun", "run", CLI, "watch", specPath], {
+      stdout: "pipe", stderr: "pipe",
+      env: { ...process.env, REVSPEC_WATCH_NO_BLOCK: "1" },
+    });
+    await proc.exited;
+    expect(proc.exitCode).toBe(3);
+  });
+
+  it("proceeds when lock file has dead PID", async () => {
+    tmpDir = setupTempDir();
+    const { specPath, jsonlPath } = createSpecWithJsonl(tmpDir);
+    const lockPath = join(tmpDir, "spec.review.live.lock");
+    writeFileSync(lockPath, "999999"); // almost certainly dead
+    appendEvent(jsonlPath, { type: "comment", threadId: "t1", line: 1, author: "reviewer", text: "x", ts: 1 });
+
+    const proc = Bun.spawn(["bun", "run", CLI, "watch", specPath], {
+      stdout: "pipe", stderr: "pipe",
+      env: { ...process.env, REVSPEC_WATCH_NO_BLOCK: "1" },
+    });
+    await proc.exited;
+    expect(proc.exitCode).toBe(0);
+  });
 });
