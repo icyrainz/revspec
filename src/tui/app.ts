@@ -601,7 +601,12 @@ export async function runTui(
         }
         case "delete-draft": {
           const thread = state.threadAtLine(state.cursorLine);
-          if (!thread) break;
+          if (!thread) {
+            setBottomBarMessage(bottomBar, " No thread on this line");
+            renderer.requestRender();
+            setTimeout(() => { refreshPager(); }, 1500);
+            break;
+          }
           const deleteOverlay = createConfirm({
             renderer,
             title: "Delete Thread",
@@ -687,12 +692,12 @@ export async function runTui(
           if (next !== null) {
             state.cursorLine = next;
             ensureCursorVisible();
-          } else if (state.threads.length === 0) {
+            refreshPager();
+          } else {
             setBottomBarMessage(bottomBar, " No threads");
             renderer.requestRender();
             setTimeout(() => { refreshPager(); }, 1500);
           }
-          refreshPager();
           break;
         }
         case "prev-thread": {
@@ -700,12 +705,12 @@ export async function runTui(
           if (prev !== null) {
             state.cursorLine = prev;
             ensureCursorVisible();
-          } else if (state.threads.length === 0) {
+            refreshPager();
+          } else {
             setBottomBarMessage(bottomBar, " No threads");
             renderer.requestRender();
             setTimeout(() => { refreshPager(); }, 1500);
           }
-          refreshPager();
           break;
         }
         case "next-unread": {
@@ -713,12 +718,12 @@ export async function runTui(
           if (nextLine !== null) {
             state.cursorLine = nextLine;
             ensureCursorVisible();
+            refreshPager();
           } else {
             setBottomBarMessage(bottomBar, " No unread replies");
             renderer.requestRender();
             setTimeout(() => { refreshPager(); }, 1500);
           }
-          refreshPager();
           break;
         }
         case "prev-unread": {
@@ -726,12 +731,12 @@ export async function runTui(
           if (prevLine !== null) {
             state.cursorLine = prevLine;
             ensureCursorVisible();
+            refreshPager();
           } else {
             setBottomBarMessage(bottomBar, " No unread replies");
             renderer.requestRender();
             setTimeout(() => { refreshPager(); }, 1500);
           }
-          refreshPager();
           break;
         }
         case "help":

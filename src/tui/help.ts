@@ -77,9 +77,9 @@ export function createHelp(opts: {
   ]);
 
   addHelpSection(dialog.content, renderer, "Thread Popup", [
-    "  Opens in INSERT mode — type and press Tab to send.",
-    "  Press Esc for NORMAL mode — scroll with j/k/gg/G,",
-    "  c to reply, r to resolve, q to close.",
+    "  New thread: INSERT mode — type and Tab to send.",
+    "  Existing thread: NORMAL mode — read conversation,",
+    "  c to reply, r to resolve, q/Esc to close.",
   ]);
 
   addHelpSection(dialog.content, renderer, "Navigation", [

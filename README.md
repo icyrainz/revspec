@@ -54,8 +54,8 @@ Opens a TUI with vim-style navigation. Press `c` on any line to open a thread an
 | `R` | Resolve all pending |
 | `dd` | Delete thread (with confirm) |
 | `T` | List threads |
-| `Shift-S` | Submit for rewrite (AI updates spec, TUI reloads) |
-| `Shift-A` | Approve spec (finalize and exit) |
+| `S` | Submit for rewrite (AI updates spec, TUI reloads) |
+| `A` | Approve spec (finalize and exit) |
 
 **Commands**
 
@@ -116,8 +116,8 @@ When done replying, run: revspec watch spec.md
 
 Watch exits on three events:
 - **Comment/reply** — returns thread content for AI to respond
-- **Submit (`Shift-S`)** — returns resolved thread summaries for AI to rewrite the spec
-- **Approve (`Shift-A`)** — spec is finalized
+- **Submit (`S`)** — returns resolved thread summaries for AI to rewrite the spec
+- **Approve (`A`)** — spec is finalized
 - **Session end** — reviewer quit the TUI
 
 ### `revspec reply <file.md> <threadId> "<text>"`
@@ -131,10 +131,10 @@ Sends an AI reply that appears instantly in the reviewer's TUI.
 2. AI launches: revspec spec.md (in tmux pane)
 3. AI runs: revspec watch spec.md (blocks)
 4. Reviewer comments → AI replies → watch again
-5. Reviewer resolves threads → presses Shift-S (submit)
+5. Reviewer resolves threads → presses S (submit)
 6. Watch returns resolved thread summaries → AI rewrites spec
 7. TUI reloads with new spec → reviewer continues reviewing
-8. Repeat 3-7 until Shift-A (approve)
+8. Repeat 3-7 until A (approve)
 ```
 
 ### Claude Code skill
