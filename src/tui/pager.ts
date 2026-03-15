@@ -61,11 +61,8 @@ export function buildPagerContent(state: ReviewState, searchQuery?: string | nul
 
     let line = `${prefix}${indicator}${padLineNum(lineNum)}  ${specText}`;
 
-    // Thread hint — separated with │ to distinguish from spec content
-    if (thread) {
-      const hint = threadHint(thread);
-      if (hint) line += `  \u2502 ${hint}`;
-    }
+    // No inline preview — the gutter indicator (▌/█/✓) is enough.
+    // Press c to open the thread and see the full conversation.
 
     lines.push(line);
   }

@@ -89,30 +89,18 @@ describe("buildPagerContent", () => {
     expect(lines[3]).toContain("\u258c");
   });
 
-  it("shows thread hint with latest message text", () => {
+  it("does not show inline comment preview (removed)", () => {
     const state = new ReviewState(SPEC, [
       makeThread("t1", 2, "open", [
-        { author: "owner", text: "AI said something" },
         { author: "reviewer", text: "My response" },
       ]),
     ]);
     const content = buildPagerContent(state);
     const lines = content.split("\n");
 
-    expect(lines[1]).toContain("My response");
-  });
-
-  it("truncates long comment text to 40 chars", () => {
-    const longText =
-      "This is a very long comment that should be truncated because it exceeds the maximum hint length";
-    const state = new ReviewState(SPEC, [
-      makeThread("t1", 2, "open", [{ author: "reviewer", text: longText }]),
-    ]);
-    const content = buildPagerContent(state);
-    const lines = content.split("\n");
-
-    expect(lines[1]).toContain("\u2026");
-    expect(lines[1]).not.toContain(longText);
+    // Only gutter indicator, no inline text preview
+    expect(lines[1]).toContain("\u258c");
+    expect(lines[1]).not.toContain("My response");
   });
 
   it("does not show status indicator for lines without threads", () => {
@@ -168,14 +156,4 @@ describe("buildPagerContent", () => {
     expect(lines[1]).not.toContain(">>");
   });
 
-  it("shows vertical bar separator before thread hint", () => {
-    const state = new ReviewState(SPEC, [
-      makeThread("t1", 2, "open", [{ author: "reviewer", text: "my comment" }]),
-    ]);
-    const content = buildPagerContent(state);
-    const lines = content.split("\n");
-
-    expect(lines[1]).toContain("\u2502"); // │ separator
-    expect(lines[1]).toContain("my comment");
-  });
 });
