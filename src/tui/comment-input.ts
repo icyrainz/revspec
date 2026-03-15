@@ -27,8 +27,6 @@ export interface CommentInputOverlay {
   threadId: string | null;
 }
 
-const MAX_CONTEXT_LENGTH = 80;
-
 function formatMessage(msg: Message): string {
   const authorLabel = msg.author === "reviewer" ? "You" : " AI";
   const tsStr = msg.ts ? new Date(msg.ts).toISOString().replace("T", " ").slice(0, 19) : "";
@@ -44,111 +42,66 @@ function formatMessage(msg: Message): string {
 
 /**
  * Create a unified comment/thread overlay.
- * - New comment: just a text input, Tab submits and closes
- * - Existing thread: scrollable conversation + reply input
- *   Tab submits reply but stays open. Esc closes.
- *   Live-updates when AI replies arrive via addMessage().
+ *
+ * New comment mode: focused text input, Tab submits and closes.
+ *
+ * Existing thread mode: two sections —
+ *   Top: scrollable conversation history (j/k or PageUp/PageDown to scroll)
+ *   Bottom: reply input (press c to focus, Tab to submit reply and unfocus, Esc to close)
+ *
+ * The popup stays open after submitting a reply. AI replies appear live via addMessage().
  */
 export function createCommentInput(opts: CommentInputOptions): CommentInputOverlay {
   const { renderer, line, existingThread, onSubmit, onResolve, onCancel } = opts;
 
   const hasThread = existingThread && existingThread.messages.length > 0;
-  const label = existingThread
-    ? `Thread #${existingThread.id} (line ${line}) [${existingThread.status.toUpperCase()}]`
-    : `New comment on line ${line}`;
 
-  // Larger overlay for threads with conversation, smaller for new comments
-  const overlayHeight = hasThread ? "80%" : 10;
+  // --- New comment mode: simple input ---
+  if (!hasThread) {
+    return createNewCommentOverlay(renderer, line, onSubmit, onCancel);
+  }
 
+  // --- Existing thread mode: history + reply ---
+  return createThreadOverlay(renderer, line, existingThread!, onSubmit, onResolve, onCancel);
+}
+
+function createNewCommentOverlay(
+  renderer: CliRenderer,
+  line: number,
+  onSubmit: (text: string) => void,
+  onCancel: () => void,
+): CommentInputOverlay {
   const container = new BoxRenderable(renderer, {
     position: "absolute",
-    top: hasThread ? "5%" : "30%",
+    top: "30%",
     left: "10%",
     width: "80%",
-    height: overlayHeight,
+    height: 10,
     zIndex: 100,
     backgroundColor: theme.base,
     border: true,
     borderStyle: "single",
     borderColor: theme.borderComment,
-    title: ` ${label} `,
+    title: ` New comment on line ${line} `,
     flexDirection: "column",
     padding: 1,
   });
 
-  // Show full thread conversation in a scrollable area
-  let scrollBox: ScrollBoxRenderable | null = null;
-  let messageText: TextRenderable | null = null;
-  let conversationContent = "";
-
-  if (hasThread) {
-    scrollBox = new ScrollBoxRenderable(renderer, {
-      width: "100%",
-      flexGrow: 1,
-      flexShrink: 1,
-      scrollY: true,
-      scrollX: false,
-    });
-
-    // Build initial conversation content
-    const parts: string[] = [];
-    for (const msg of existingThread!.messages) {
-      parts.push(formatMessage(msg));
-    }
-    conversationContent = parts.join("");
-
-    messageText = new TextRenderable(renderer, {
-      content: conversationContent,
-      width: "100%",
-      fg: theme.text,
-      wrapMode: "word",
-    });
-
-    scrollBox.add(messageText);
-    container.add(scrollBox);
-
-    // Scroll to bottom to show latest message
-    setTimeout(() => {
-      if (scrollBox) {
-        scrollBox.scrollTo(scrollBox.scrollHeight);
-        renderer.requestRender();
-      }
-    }, 0);
-  }
-
-  // Separator between conversation and input
-  if (hasThread) {
-    const sep = new TextRenderable(renderer, {
-      content: " Reply:",
-      width: "100%",
-      height: 1,
-      fg: theme.subtext,
-      wrapMode: "none",
-    });
-    container.add(sep);
-  }
-
   const textarea = new TextareaRenderable(renderer, {
     width: "100%",
-    height: hasThread ? 4 : undefined,
-    flexGrow: hasThread ? 0 : 1,
+    flexGrow: 1,
     backgroundColor: theme.surface0,
     textColor: theme.text,
     focusedBackgroundColor: theme.surface0,
     focusedTextColor: theme.text,
     wrapMode: "word",
-    placeholder: hasThread ? "Type your reply..." : "Type your comment...",
+    placeholder: "Type your comment...",
     placeholderColor: theme.overlay,
     initialValue: "",
   });
 
-  // Hint line
-  const hintText = hasThread
-    ? " [Tab] reply  [Ctrl+R] resolve  [Esc] close"
-    : " [Tab] submit  [Esc] cancel";
-
   const hint = new TextRenderable(renderer, {
-    content: hintText,
+    content: " [Tab] submit  [Esc] cancel",
     width: "100%",
     height: 1,
     fg: theme.hintFg,
@@ -160,69 +113,243 @@ export function createCommentInput(opts: CommentInputOptions): CommentInputOverl
   container.add(textarea);
   container.add(hint);
 
-  // Focus textarea
-  setTimeout(() => {
-    textarea.focus();
-    renderer.requestRender();
-  }, 0);
+  setTimeout(() => { textarea.focus(); renderer.requestRender(); }, 0);
 
-  /** Append a message to the conversation display and scroll to bottom */
-  function appendToConversation(msg: Message): void {
-    if (!messageText || !scrollBox) return;
-    conversationContent += formatMessage(msg);
-    messageText.content = conversationContent;
-    setTimeout(() => {
-      if (scrollBox) {
-        scrollBox.scrollTo(scrollBox.scrollHeight);
-        renderer.requestRender();
-      }
-    }, 0);
-  }
-
+  let submitted = false;
   const keyHandler = (key: KeyEvent) => {
     if (key.name === "escape") {
-      key.preventDefault();
-      key.stopPropagation();
+      key.preventDefault(); key.stopPropagation();
       onCancel();
       return;
     }
-    // Tab submits
     if (key.name === "tab") {
-      key.preventDefault();
-      key.stopPropagation();
+      key.preventDefault(); key.stopPropagation();
+      if (submitted) return;
+      submitted = true;
       const text = textarea.plainText.trim();
-      if (text.length === 0) return; // ignore empty
-
-      if (hasThread) {
-        // Existing thread: submit reply, append to conversation, clear input, stay open
-        onSubmit(text);
-        appendToConversation({ author: "reviewer", text, ts: Date.now() });
-        textarea.clear();
-        textarea.focus();
-        renderer.requestRender();
-      } else {
-        // New comment: submit and close
-        onSubmit(text);
-      }
+      if (text.length > 0) onSubmit(text); else onCancel();
       return;
     }
-    // Ctrl+R resolves thread (only for existing threads)
-    if (key.ctrl && key.name === "r" && hasThread) {
-      key.preventDefault();
-      key.stopPropagation();
+  };
+
+  renderer.keyInput.on("keypress", keyHandler);
+
+  return {
+    container,
+    cleanup() { renderer.keyInput.off("keypress", keyHandler); textarea.destroy(); },
+    addMessage() {},
+    threadId: null,
+  };
+}
+
+function createThreadOverlay(
+  renderer: CliRenderer,
+  line: number,
+  thread: Thread,
+  onSubmit: (text: string) => void,
+  onResolve: () => void,
+  onCancel: () => void,
+): CommentInputOverlay {
+  const label = `Thread #${thread.id} (line ${line}) [${thread.status.toUpperCase()}]`;
+
+  const container = new BoxRenderable(renderer, {
+    position: "absolute",
+    top: "5%",
+    left: "10%",
+    width: "80%",
+    height: "80%",
+    zIndex: 100,
+    backgroundColor: theme.base,
+    border: true,
+    borderStyle: "single",
+    borderColor: theme.borderComment,
+    title: ` ${label} `,
+    flexDirection: "column",
+    padding: 1,
+  });
+
+  // --- Scrollable conversation history ---
+  const scrollBox = new ScrollBoxRenderable(renderer, {
+    width: "100%",
+    flexGrow: 1,
+    flexShrink: 1,
+    scrollY: true,
+    scrollX: false,
+  });
+
+  let conversationContent = "";
+  for (const msg of thread.messages) {
+    conversationContent += formatMessage(msg);
+  }
+
+  const messageText = new TextRenderable(renderer, {
+    content: conversationContent,
+    width: "100%",
+    fg: theme.text,
+    wrapMode: "word",
+  });
+
+  scrollBox.add(messageText);
+  container.add(scrollBox);
+
+  // --- Reply input area (initially hidden/unfocused) ---
+  const inputBox = new BoxRenderable(renderer, {
+    width: "100%",
+    height: 6,
+    flexGrow: 0,
+    flexShrink: 0,
+    flexDirection: "column",
+  });
+
+  const sep = new TextRenderable(renderer, {
+    content: " Reply (press c to type):",
+    width: "100%",
+    height: 1,
+    fg: theme.subtext,
+    wrapMode: "none",
+  });
+
+  const textarea = new TextareaRenderable(renderer, {
+    width: "100%",
+    height: 4,
+    backgroundColor: theme.surface1,
+    textColor: theme.overlay,
+    focusedBackgroundColor: theme.surface0,
+    focusedTextColor: theme.text,
+    wrapMode: "word",
+    placeholder: "Press c to reply...",
+    placeholderColor: theme.overlay,
+    initialValue: "",
+  });
+
+  inputBox.add(sep);
+  inputBox.add(textarea);
+  container.add(inputBox);
+
+  // --- Hint bar ---
+  const hintBrowse = " [j/k] scroll  [c] reply  [r] resolve  [Esc] close";
+  const hintEdit = " [Tab] send  [Esc] cancel edit";
+
+  const hint = new TextRenderable(renderer, {
+    content: hintBrowse,
+    width: "100%",
+    height: 1,
+    fg: theme.hintFg,
+    bg: theme.hintBg,
+    wrapMode: "none",
+    truncate: true,
+  });
+
+  container.add(hint);
+
+  // Scroll to bottom
+  setTimeout(() => {
+    scrollBox.scrollTo(scrollBox.scrollHeight);
+    renderer.requestRender();
+  }, 0);
+
+  // --- State ---
+  let editing = false;
+
+  function appendToConversation(msg: Message): void {
+    conversationContent += formatMessage(msg);
+    messageText.content = conversationContent;
+    setTimeout(() => {
+      scrollBox.scrollTo(scrollBox.scrollHeight);
+      renderer.requestRender();
+    }, 0);
+  }
+
+  function startEditing(): void {
+    editing = true;
+    textarea.focus();
+    sep.content = " Reply:";
+    hint.content = hintEdit;
+    renderer.requestRender();
+  }
+
+  function stopEditing(): void {
+    editing = false;
+    textarea.blur();
+    sep.content = " Reply (press c to type):";
+    hint.content = hintBrowse;
+    renderer.requestRender();
+  }
+
+  const keyHandler = (key: KeyEvent) => {
+    if (editing) {
+      // --- Editing mode ---
+      if (key.name === "escape") {
+        key.preventDefault(); key.stopPropagation();
+        stopEditing();
+        return;
+      }
+      if (key.name === "tab") {
+        key.preventDefault(); key.stopPropagation();
+        const text = textarea.plainText.trim();
+        if (text.length > 0) {
+          onSubmit(text);
+          appendToConversation({ author: "reviewer", text, ts: Date.now() });
+          // Clear textarea by setting new initial value
+          textarea.selectAll();
+          textarea.deleteChar();
+        }
+        stopEditing();
+        return;
+      }
+      // Let textarea handle all other keys when editing
+      return;
+    }
+
+    // --- Browse mode (not editing) ---
+    if (key.name === "escape") {
+      key.preventDefault(); key.stopPropagation();
+      onCancel();
+      return;
+    }
+    if (key.name === "c") {
+      key.preventDefault(); key.stopPropagation();
+      startEditing();
+      return;
+    }
+    if (key.name === "r") {
+      key.preventDefault(); key.stopPropagation();
+      const wasResolved = thread.status === "resolved";
       onResolve();
       return;
     }
-    // Ctrl+D / Ctrl+U scroll the conversation
-    if (hasThread && scrollBox && key.ctrl && (key.name === "d" || key.name === "u")) {
-      key.preventDefault();
-      key.stopPropagation();
-      const scrollAmount = Math.max(1, Math.floor(scrollBox.visibleHeight / 2));
-      if (key.name === "d") {
-        scrollBox.scrollBy({ x: 0, y: scrollAmount });
-      } else {
-        scrollBox.scrollBy({ x: 0, y: -scrollAmount });
-      }
+    // j/k scroll conversation
+    if (key.name === "j" || key.name === "down") {
+      key.preventDefault(); key.stopPropagation();
+      scrollBox.scrollBy({ x: 0, y: 1 });
+      renderer.requestRender();
+      return;
+    }
+    if (key.name === "k" || key.name === "up") {
+      key.preventDefault(); key.stopPropagation();
+      scrollBox.scrollBy({ x: 0, y: -1 });
+      renderer.requestRender();
+      return;
+    }
+    // Page scroll
+    if (key.name === "pagedown" || (key.ctrl && key.name === "d")) {
+      key.preventDefault(); key.stopPropagation();
+      const amount = Math.max(1, Math.floor(scrollBox.visibleHeight / 2));
+      scrollBox.scrollBy({ x: 0, y: amount });
+      renderer.requestRender();
+      return;
+    }
+    if (key.name === "pageup" || (key.ctrl && key.name === "u")) {
+      key.preventDefault(); key.stopPropagation();
+      const amount = Math.max(1, Math.floor(scrollBox.visibleHeight / 2));
+      scrollBox.scrollBy({ x: 0, y: -amount });
+      renderer.requestRender();
+      return;
+    }
+    // G go to bottom, gg go to top
+    if (key.shift && key.name === "g") {
+      key.preventDefault(); key.stopPropagation();
+      scrollBox.scrollTo(scrollBox.scrollHeight);
       renderer.requestRender();
       return;
     }
@@ -230,15 +357,13 @@ export function createCommentInput(opts: CommentInputOptions): CommentInputOverl
 
   renderer.keyInput.on("keypress", keyHandler);
 
-  function cleanup(): void {
-    renderer.keyInput.off("keypress", keyHandler);
-    textarea.destroy();
-  }
-
   return {
     container,
-    cleanup,
-    threadId: existingThread?.id ?? null,
+    cleanup() {
+      renderer.keyInput.off("keypress", keyHandler);
+      textarea.destroy();
+    },
+    threadId: thread.id,
     addMessage(msg: Message) {
       appendToConversation(msg);
     },
