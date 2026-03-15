@@ -3,6 +3,7 @@ import {
   SelectRenderable,
   SelectRenderableEvents,
   type CliRenderer,
+  type KeyEvent,
 } from "@opentui/core";
 import type { Thread } from "../protocol/types";
 import { theme, STATUS_ICONS } from "./ui/theme";
@@ -31,23 +32,23 @@ function previewText(thread: Thread): string {
 }
 
 /**
- * Create a thread list overlay showing open/pending threads.
+ * Create a thread list overlay showing all threads.
  * Select + Enter: jump to that thread's line.
  * Escape: cancel.
  */
 export function createThreadList(opts: ThreadListOptions): ThreadListOverlay {
   const { renderer, threads, onSelect, onCancel } = opts;
 
-  // Filter to active threads (open/pending)
-  const activeThreads = threads.filter(
-    (t) => t.status === "open" || t.status === "pending"
+  const allThreads = threads.filter(
+    (t) => t.status === "open" || t.status === "pending" || t.status === "resolved"
   );
-
-  const count = activeThreads.length;
+  const activeCount = threads.filter(
+    (t) => t.status === "open" || t.status === "pending"
+  ).length;
 
   const dialog = createDialog({
     renderer,
-    title: `Threads (${count} active)`,
+    title: `Threads (${activeCount} active, ${allThreads.length} total)`,
     width: "70%",
     height: "60%",
     top: "15%",
@@ -61,9 +62,11 @@ export function createThreadList(opts: ThreadListOptions): ThreadListOverlay {
     ],
   });
 
-  if (activeThreads.length === 0) {
+  let keyHandler: ((key: KeyEvent) => void) | null = null;
+
+  if (allThreads.length === 0) {
     const emptyMsg = new TextRenderable(renderer, {
-      content: "No active threads. Press [Esc] to close.",
+      content: "No threads. Press [Esc] to close.",
       width: "100%",
       height: 1,
       fg: theme.textDim,
@@ -71,8 +74,7 @@ export function createThreadList(opts: ThreadListOptions): ThreadListOverlay {
     });
     dialog.content.add(emptyMsg);
   } else {
-    // Build select options from threads
-    const selectOptions = activeThreads.map((t) => {
+    const selectOptions = allThreads.map((t) => {
       const icon = STATUS_ICONS[t.status];
       return {
         name: `${icon} #${t.id} line ${t.line}: ${previewText(t)}`,
@@ -100,23 +102,40 @@ export function createThreadList(opts: ThreadListOptions): ThreadListOverlay {
 
     dialog.content.add(select);
 
-    // Focus the select so it handles j/k navigation and Enter selection
     setTimeout(() => {
       renderer.focusRenderable(select);
       renderer.requestRender();
     }, 0);
 
-    // Listen for item selection (Enter key)
+    // SelectRenderable ITEM_SELECTED event
     select.on(SelectRenderableEvents.ITEM_SELECTED, () => {
       const selected = select.getSelectedOption();
       if (selected && selected.value != null) {
         onSelect(selected.value as number);
       }
     });
+
+    // Manual Enter handler as fallback
+    keyHandler = (key: KeyEvent) => {
+      if (key.name === "return") {
+        key.preventDefault();
+        key.stopPropagation();
+        const selected = select.getSelectedOption();
+        if (selected && selected.value != null) {
+          onSelect(selected.value as number);
+        }
+      }
+    };
+    renderer.keyInput.on("keypress", keyHandler);
   }
 
   return {
     container: dialog.container,
-    cleanup: dialog.cleanup,
+    cleanup() {
+      dialog.cleanup();
+      if (keyHandler) {
+        renderer.keyInput.off("keypress", keyHandler);
+      }
+    },
   };
 }
