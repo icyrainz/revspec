@@ -60,8 +60,9 @@ export function createCommentInput(opts: CommentInputOptions): CommentInputOverl
   });
 
   // Show full thread conversation in a scrollable area
+  let scrollBox: ScrollBoxRenderable | null = null;
   if (hasThread) {
-    const scrollBox = new ScrollBoxRenderable(renderer, {
+    scrollBox = new ScrollBoxRenderable(renderer, {
       width: "100%",
       flexGrow: 1,
       flexShrink: 1,
@@ -176,6 +177,19 @@ export function createCommentInput(opts: CommentInputOptions): CommentInputOverl
       key.preventDefault();
       key.stopPropagation();
       onResolve();
+      return;
+    }
+    // Ctrl+D / Ctrl+U scroll the conversation (only for threads with scroll)
+    if (hasThread && scrollBox && key.ctrl && (key.name === "d" || key.name === "u")) {
+      key.preventDefault();
+      key.stopPropagation();
+      const scrollAmount = Math.max(1, Math.floor(scrollBox.visibleHeight / 2));
+      if (key.name === "d") {
+        scrollBox.scrollTo(scrollBox.scrollTop + scrollAmount);
+      } else {
+        scrollBox.scrollTo(Math.max(0, scrollBox.scrollTop - scrollAmount));
+      }
+      renderer.requestRender();
       return;
     }
   };

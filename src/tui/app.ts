@@ -233,11 +233,6 @@ export async function runTui(
   function showCommentInput(): void {
     const existingThread = state.threadAtLine(state.cursorLine);
 
-    // Mark thread as read when opening
-    if (existingThread) {
-      state.markRead(existingThread.id);
-    }
-
     const overlay = createCommentInput({
       renderer,
       line: state.cursorLine,
@@ -245,6 +240,7 @@ export async function runTui(
       onSubmit: (text: string) => {
         if (existingThread) {
           state.replyToThread(existingThread.id, text);
+          state.markRead(existingThread.id);
           appendEvent(jsonlPath, { type: "reply", threadId: existingThread.id, author: "reviewer", text, ts: Date.now() });
         } else {
           state.addComment(state.cursorLine, text);
@@ -260,6 +256,7 @@ export async function runTui(
         if (existingThread) {
           const wasResolved = existingThread.status === "resolved";
           state.resolveThread(existingThread.id);
+          state.markRead(existingThread.id);
           appendEvent(jsonlPath, { type: wasResolved ? "unresolve" : "resolve", threadId: existingThread.id, author: "reviewer", ts: Date.now() });
         }
         dismissOverlay();
@@ -574,6 +571,7 @@ export async function runTui(
             if (thread) {
               const wasResolved = thread.status === "resolved";
               state.resolveThread(thread.id);
+              state.markRead(thread.id);
               appendEvent(jsonlPath, { type: wasResolved ? "unresolve" : "resolve", threadId: thread.id, author: "reviewer", ts: Date.now() });
               refreshPager();
               const msg = wasResolved
