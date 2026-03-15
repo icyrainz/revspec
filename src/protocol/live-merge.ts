@@ -51,7 +51,6 @@ export function mergeJsonlIntoReview(
   }
 
   // Preserve original ordering of existing threads, then append new JSONL-only threads
-  const jsonlIds = new Set(jsonlThreads.map((t) => t.id));
   const orderedIds = [
     ...base.threads.map((t) => t.id),
     ...jsonlThreads
