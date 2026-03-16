@@ -54,12 +54,18 @@ Opens a TUI with vim-style navigation. Press `c` on any line to open a thread an
 | `j/k` | Move cursor down/up |
 | `gg` / `G` | Go to top / bottom |
 | `Ctrl+D/U` | Half page down/up |
+| `H/M/L` | Jump to screen top / middle / bottom |
 | `zz` | Center cursor line in viewport |
 | `/` | Search (smartcase) |
 | `n/N` | Next/prev search match |
 | `Esc` | Clear search highlights |
 | `]t/[t` | Next/prev thread |
 | `]r/[r` | Next/prev unread AI reply |
+| `]1/[1` | Next/prev h1 heading |
+| `]2/[2` | Next/prev h2 heading |
+| `]3/[3` | Next/prev h3 heading |
+| `Ctrl+O/I` | Jump list back/forward |
+| `''` | Jump to previous position |
 
 **Review**
 
@@ -69,7 +75,7 @@ Opens a TUI with vim-style navigation. Press `c` on any line to open a thread an
 | `r` | Resolve thread (toggle) |
 | `R` | Resolve all pending |
 | `dd` | Delete thread (with confirm) |
-| `t` | List threads |
+| `t` | List threads (`Ctrl+F` to filter all/active/resolved) |
 | `S` | Submit for rewrite (AI updates spec, TUI reloads) |
 | `A` | Approve spec (finalize and exit) |
 
@@ -78,24 +84,17 @@ Opens a TUI with vim-style navigation. Press `c` on any line to open a thread an
 | Key | Action |
 |-----|--------|
 | `:q` | Quit (warns if unresolved threads) |
-| `:q!` | Force quit |
+| `:q!` | Force quit (also `:wq!`, `:qa!`, etc.) |
 | `:{N}` | Jump to line N |
 | `Ctrl+C` | Force quit |
 | `?` | Help |
 
-**Popups**
-
-| Key | Action |
-|-----|--------|
-| `y/Enter` | Confirm / select |
-| `q/Esc` | Cancel / close |
-
 ### Thread popup
 
-The thread popup has two modes:
+The thread popup has two vim-style modes, indicated by border color and label:
 
-- **Insert mode** — type your comment, `Tab` sends, `Esc` switches to normal mode
-- **Normal mode** — `j/k` and `Ctrl+D/U` scroll the conversation, `gg/G` top/bottom, `c` to reply, `r` to resolve, `q/Esc` to close
+- **Insert mode** (green border) — type your comment, `Tab` sends, `Esc` switches to normal mode
+- **Normal mode** (blue border) — `j/k` and `Ctrl+D/U` scroll the conversation, `gg/G` top/bottom, `c` to reply, `r` to resolve, `q/Esc` to close
 
 ### Markdown rendering
 
