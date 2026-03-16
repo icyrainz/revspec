@@ -53,13 +53,33 @@ export function buildPagerContent(state: ReviewState, searchQuery?: string | nul
  * Inline markdown is parsed and styled per line.
  * Line numbers and thread hints are dimmed.
  */
-export function buildPagerNodes(lineNode: TextRenderable, state: ReviewState, searchQuery?: string | null, unreadThreadIds?: ReadonlySet<string>): void {
+/**
+ * Word-wrap a string at the given width, breaking at word boundaries.
+ */
+function wordWrap(text: string, width: number): string[] {
+  if (width <= 0 || text.length <= width) return [text];
+  const lines: string[] = [];
+  let remaining = text;
+  while (remaining.length > width) {
+    let breakAt = remaining.lastIndexOf(" ", width);
+    if (breakAt <= 0) breakAt = width; // no space found — hard break
+    lines.push(remaining.slice(0, breakAt));
+    remaining = remaining.slice(breakAt).replace(/^ /, ""); // trim leading space on continuation
+  }
+  if (remaining.length > 0) lines.push(remaining);
+  return lines;
+}
+
+export function buildPagerNodes(lineNode: TextRenderable, state: ReviewState, searchQuery?: string | null, unreadThreadIds?: ReadonlySet<string>, wrapWidth?: number): void {
   lineNode.clear();
 
   // Calculate dynamic gutter width based on total line count
   const numWidth = Math.max(String(state.lineCount).length, 3);
-  // Blank gutter for table borders: prefix(1) + indicator(1) + numWidth + spaces(2)
-  const gutterBlank = " ".repeat(2 + numWidth + 2);
+  const gutterWidth = 2 + numWidth + 2; // prefix(1) + indicator(1) + numWidth + spaces(2)
+  // Blank gutter for table borders and wrap continuations
+  const gutterBlank = " ".repeat(gutterWidth);
+  // Available content width for wrapping
+  const contentWidth = wrapWidth && wrapWidth > gutterWidth ? wrapWidth - gutterWidth : 0;
 
   // Pre-scan for table blocks so we can calculate column widths
   const tableBlocks = new Map<number, TableBlock>();
@@ -179,6 +199,17 @@ export function buildPagerNodes(lineNode: TextRenderable, state: ReviewState, se
           lineNode.add(TextNodeRenderable.fromString(part, { fg: theme.text, bg: isCursor ? theme.backgroundElement : undefined }));
         }
       }
+    } else if (contentWidth > 0 && specText.length > contentWidth) {
+      // Wrap long lines — first chunk gets markdown, continuations get blank gutter + markdown
+      const chunks = wordWrap(specText, contentWidth);
+      const segments = parseMarkdownLine(chunks[0]);
+      addSegments(lineNode, segments, theme.text, isCursor ? theme.backgroundElement : undefined);
+      for (let c = 1; c < chunks.length; c++) {
+        lineNode.add(TextNodeRenderable.fromString("\n", {}));
+        lineNode.add(TextNodeRenderable.fromString(gutterBlank, { fg: theme.textDim }));
+        const contSegments = parseMarkdownLine(chunks[c]);
+        addSegments(lineNode, contSegments, theme.text, isCursor ? theme.backgroundElement : undefined);
+      }
     } else {
       // Parse and render inline markdown
       const segments = parseMarkdownLine(specText);
@@ -195,10 +226,14 @@ export function buildPagerNodes(lineNode: TextRenderable, state: ReviewState, se
 // --- Visual row offset calculation ---
 
 /**
- * Count extra visual lines (table borders) before a given spec line index.
+ * Count extra visual lines (table borders + word wrap) before a given spec line index.
  * Used to map spec line numbers to actual visual rows in the rendered content.
  */
-export function countExtraVisualLines(specLines: string[], cursorIndex: number): number {
+export function countExtraVisualLines(specLines: string[], cursorIndex: number, wrapWidth?: number): number {
+  const numWidth = Math.max(String(specLines.length).length, 3);
+  const gutterWidth = 2 + numWidth + 2;
+  const contentWidth = wrapWidth && wrapWidth > gutterWidth ? wrapWidth - gutterWidth : 0;
+
   let extra = 0;
   let i = 0;
   while (i < specLines.length) {
@@ -214,6 +249,10 @@ export function countExtraVisualLines(specLines: string[], cursorIndex: number):
       // Bottom border: rendered after last table row
       if (cursorIndex >= tableEnd) extra++;
       continue;
+    }
+    // Word wrap: count extra continuation lines
+    if (contentWidth > 0 && i < cursorIndex && specLines[i].length > contentWidth) {
+      extra += wordWrap(specLines[i], contentWidth).length - 1;
     }
     i++;
   }
@@ -243,7 +282,7 @@ export function createPager(renderer: CliRenderer): PagerComponents {
     width: "100%",
     flexGrow: 1,
     scrollY: true,
-    scrollX: true,
+    scrollX: false,
     backgroundColor: theme.base,
   });
 

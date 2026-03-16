@@ -108,6 +108,12 @@ export async function runTui(
   rootBox.add(bottomBar.box);
   renderer.root.add(rootBox);
 
+  // Wrap mode state
+  let wrapEnabled = false;
+  function currentWrapWidth(): number {
+    return wrapEnabled ? renderer.width : 0;
+  }
+
   // 7. Initial render
   function refreshPager(): void {
     // Spec mutation guard
@@ -118,7 +124,7 @@ export async function runTui(
       }
     } catch {}
 
-    buildPagerNodes(pager.lineNode, state, searchQuery, state.unreadThreadIds);
+    buildPagerNodes(pager.lineNode, state, searchQuery, state.unreadThreadIds, currentWrapWidth());
     buildTopBar(topBar, specFile, state, state.unreadCount(), specMtimeChanged);
     // Don't overwrite transient messages (welcome hint, warnings) during navigation
     if (!messageTimer) {
@@ -171,7 +177,7 @@ export async function runTui(
   // Map visual row back to spec line number (for H/M/L)
   function visualRowToSpecLine(targetRow: number): number {
     for (let i = 0; i < state.specLines.length; i++) {
-      const row = i + countExtraVisualLines(state.specLines, i);
+      const row = i + countExtraVisualLines(state.specLines, i, currentWrapWidth());
       if (row >= targetRow) return i + 1;
     }
     return state.lineCount;
@@ -219,7 +225,7 @@ export async function runTui(
   // Helper: scroll pager to ensure cursor line is visible
   function ensureCursorVisible(): void {
     // Map spec line to visual row, accounting for table border extra lines
-    const extra = countExtraVisualLines(state.specLines, state.cursorLine - 1);
+    const extra = countExtraVisualLines(state.specLines, state.cursorLine - 1, currentWrapWidth());
     const cursorRow = state.cursorLine - 1 + extra;
     const viewportHeight = Math.max(1, renderer.height - 2); // minus top + bottom bar
 
@@ -253,6 +259,13 @@ export async function runTui(
       }
       exitTui(resolve, "session-end");
       return "exit";
+    }
+    // :wrap — toggle line wrapping
+    if (cmd === "wrap") {
+      wrapEnabled = !wrapEnabled;
+      refreshPager();
+      showTransient(wrapEnabled ? "Line wrap on" : "Line wrap off", "info");
+      return "stay";
     }
     // :{N} — jump to line number
     const lineNum = parseInt(cmd, 10);
@@ -636,7 +649,7 @@ export async function runTui(
           refreshPager();
           break;
         case "center-cursor": {
-          const extra = countExtraVisualLines(state.specLines, state.cursorLine - 1);
+          const extra = countExtraVisualLines(state.specLines, state.cursorLine - 1, currentWrapWidth());
           const cursorRow = state.cursorLine - 1 + extra;
           const halfView = Math.floor(pageSize() / 2);
           pager.scrollBox.scrollTo(Math.max(0, cursorRow - halfView));

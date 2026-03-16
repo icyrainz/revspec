@@ -82,7 +82,7 @@ export function parseMarkdownLine(line: string): StyledSegment[] {
   const headingMatch = line.match(/^(#{1,6})\s+(.*)/);
   if (headingMatch) {
     const level = headingMatch[1].length;
-    const color = level <= 2 ? theme.blue : theme.mauve;
+    const color = level <= 2 ? theme.blue : level === 3 ? theme.mauve : theme.textMuted;
     // Parse inline markdown within heading text
     const inner = parseInlineMarkdown(headingMatch[2]);
     return inner.map((s) => ({

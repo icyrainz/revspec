@@ -114,6 +114,7 @@ export function createHelp(opts: {
     "  :q/:wq    Quit (warns if unresolved)",
     "  :q!       Force quit",
     "  :{N}      Jump to line N",
+    "  :wrap     Toggle line wrapping",
     "  Ctrl+C    Force quit",
   ]);
 
