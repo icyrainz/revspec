@@ -57,7 +57,11 @@ function buildTitle(threads: Thread[], mode: FilterMode): string {
 }
 
 function threadsToOptions(threads: Thread[]) {
-  return threads.map((t) => {
+  const STATUS_ORDER: Record<string, number> = { open: 0, pending: 1, resolved: 2 };
+  const sorted = [...threads].sort((a, b) =>
+    (STATUS_ORDER[a.status] ?? 3) - (STATUS_ORDER[b.status] ?? 3) || a.line - b.line
+  );
+  return sorted.map((t) => {
     const icon = STATUS_ICONS[t.status];
     return {
       name: `${icon} #${t.id} line ${t.line}: ${previewText(t)}`,

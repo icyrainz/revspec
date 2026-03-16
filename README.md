@@ -94,7 +94,7 @@ Opens a TUI with vim-style navigation. Press `c` on any line to open a thread an
 The thread popup has two vim-style modes, indicated by border color and label:
 
 - **Insert mode** (green border) — type your comment, `Tab` sends, `Esc` switches to normal mode
-- **Normal mode** (blue border) — `j/k` and `Ctrl+D/U` scroll the conversation, `gg/G` top/bottom, `c` to reply, `r` to resolve, `q/Esc` to close
+- **Normal mode** (blue border) — `j/k` and `Ctrl+D/U` scroll the conversation, `gg/G` top/bottom, `i/c` to reply, `r` to resolve, `q/Esc` to close
 
 ### Markdown rendering
 

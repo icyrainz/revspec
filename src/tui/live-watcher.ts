@@ -15,14 +15,16 @@ export function createLiveWatcher(
   let pollTimer: ReturnType<typeof setInterval> | null = null
 
   function check() {
-    const { events, newOffset } = readEventsFromOffset(jsonlPath, offset)
-    if (events.length > 0) {
-      offset = newOffset
-      const ownerEvents = events.filter((e) => e.author === "owner")
-      if (ownerEvents.length > 0) {
-        onOwnerEvents(ownerEvents)
+    try {
+      const { events, newOffset } = readEventsFromOffset(jsonlPath, offset)
+      if (events.length > 0) {
+        offset = newOffset
+        const ownerEvents = events.filter((e) => e.author === "owner")
+        if (ownerEvents.length > 0) {
+          onOwnerEvents(ownerEvents)
+        }
       }
-    }
+    } catch {}
   }
 
   return {

@@ -33,16 +33,16 @@ export function buildTopBar(
   // Filename — bold
   t.add(TextNodeRenderable.fromString(` ${name}`, { fg: theme.text, attributes: TextAttributes.BOLD }));
 
-  t.add(TextNodeRenderable.fromString("  \u00b7  ", { fg: theme.textDim }));
-
-  // Thread summary
-  if (open > 0 || pending > 0) {
-    const parts: string[] = [];
-    if (open > 0) parts.push(`${open} open`);
-    if (pending > 0) parts.push(`${pending} pending`);
-    t.add(TextNodeRenderable.fromString(parts.join(", "), { fg: theme.yellow }));
-  } else {
-    t.add(TextNodeRenderable.fromString("No active threads", { fg: theme.textMuted }));
+  // Thread progress — shown when threads exist
+  if (state.threads.length > 0) {
+    const resolved = state.threads.filter((t) => t.status === "resolved").length;
+    const total = state.threads.length;
+    t.add(TextNodeRenderable.fromString("  \u00b7  ", { fg: theme.textDim }));
+    if (resolved === total) {
+      t.add(TextNodeRenderable.fromString(`${resolved}/${total} resolved`, { fg: theme.green }));
+    } else {
+      t.add(TextNodeRenderable.fromString(`${resolved}/${total} resolved`, { fg: theme.yellow }));
+    }
   }
 
   // Unread replies
@@ -50,7 +50,7 @@ export function buildTopBar(
     t.add(TextNodeRenderable.fromString("  \u00b7  ", { fg: theme.textDim }));
     t.add(TextNodeRenderable.fromString(
       `${unreadCount} new repl${unreadCount === 1 ? "y" : "ies"}`,
-      { fg: theme.green, attributes: TextAttributes.BOLD }
+      { fg: theme.yellow, attributes: TextAttributes.BOLD }
     ));
   }
 
@@ -66,6 +66,16 @@ export function buildTopBar(
     : `${Math.round(((state.cursorLine - 1) / (state.lineCount - 1)) * 100)}%`;
   t.add(TextNodeRenderable.fromString("  \u00b7  ", { fg: theme.textDim }));
   t.add(TextNodeRenderable.fromString(`L${state.cursorLine}/${state.lineCount} ${posLabel}`, { fg: theme.textMuted }));
+
+  // Current section breadcrumb — nearest heading above cursor
+  for (let i = state.cursorLine - 1; i >= 0; i--) {
+    const match = state.specLines[i].match(/^(#{1,3})\s+(.+)/);
+    if (match) {
+      t.add(TextNodeRenderable.fromString("  \u00b7  ", { fg: theme.textDim }));
+      t.add(TextNodeRenderable.fromString(match[2].trim(), { fg: theme.textDim, attributes: TextAttributes.ITALIC }));
+      break;
+    }
+  }
 }
 
 export type MessageIcon = "warn" | "success" | "info";

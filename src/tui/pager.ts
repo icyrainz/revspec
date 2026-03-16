@@ -1,5 +1,4 @@
 import type { ReviewState } from "../state/review-state";
-import type { Thread } from "../protocol/types";
 import {
   ScrollBoxRenderable,
   TextRenderable,
@@ -9,16 +8,6 @@ import {
 } from "@opentui/core";
 import { theme } from "./ui/theme";
 import { parseMarkdownLine, addSegments, collectTable, renderTableBorder, renderTableSeparator, renderTableRow, parseTableCells, type TableBlock } from "./ui/markdown";
-
-const MAX_HINT_LENGTH = 40;
-
-function threadHint(thread: Thread): string {
-  if (thread.messages.length === 0) return "";
-  const last = thread.messages[thread.messages.length - 1];
-  const text = last.text.replace(/\n/g, " ");
-  if (text.length <= MAX_HINT_LENGTH) return text;
-  return text.slice(0, MAX_HINT_LENGTH - 1) + "\u2026";
-}
 
 // --- Plain text builder (for tests) ---
 
@@ -127,7 +116,7 @@ export function buildPagerNodes(lineNode: TextRenderable, state: ReviewState, se
     // Gutter: cursor + indicator + line number (dimmed)
     lineNode.add(TextNodeRenderable.fromString(
       `${prefix}`,
-      { fg: isCursor ? theme.yellow : theme.textDim, bg: isCursor ? theme.backgroundElement : undefined }
+      { fg: isCursor ? theme.mauve : theme.textDim, bg: isCursor ? theme.backgroundElement : undefined }
     ));
     lineNode.add(TextNodeRenderable.fromString(
       indicator,
@@ -171,7 +160,10 @@ export function buildPagerNodes(lineNode: TextRenderable, state: ReviewState, se
         lineNode.add(TextNodeRenderable.fromString(gutterBlank, { fg: theme.textDim }));
         renderTableBorder(lineNode, tableBlock.colWidths, "bottom");
       }
-    } else if (searchQuery && specText.toLowerCase().includes(searchQuery.toLowerCase())) {
+    } else if (searchQuery && (() => {
+      const cs = searchQuery !== searchQuery.toLowerCase();
+      return cs ? specText.includes(searchQuery) : specText.toLowerCase().includes(searchQuery.toLowerCase());
+    })()) {
       // Line contains search match — show colored match segments (no markdown styling)
       const escaped = searchQuery.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
       const caseSensitive = searchQuery !== searchQuery.toLowerCase();
@@ -191,15 +183,6 @@ export function buildPagerNodes(lineNode: TextRenderable, state: ReviewState, se
       // Parse and render inline markdown
       const segments = parseMarkdownLine(specText);
       addSegments(lineNode, segments, theme.text, isCursor ? theme.backgroundElement : undefined);
-    }
-
-    // Thread hint (dimmed, inline)
-    if (thread && thread.messages.length > 0) {
-      const hint = threadHint(thread);
-      lineNode.add(TextNodeRenderable.fromString(
-        `  \u00ab ${hint}`,
-        { fg: theme.textDim, attributes: TextAttributes.DIM, bg: isCursor ? theme.backgroundElement : undefined }
-      ));
     }
 
     // Newline between lines (except last)

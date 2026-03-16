@@ -6,7 +6,7 @@ import {
 } from "@opentui/core";
 import { theme } from "./ui/theme";
 
-const SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+const SPINNER_FRAMES = ["|", "/", "-", "\\"];
 
 export interface SpinnerOverlay {
   container: BoxRenderable;

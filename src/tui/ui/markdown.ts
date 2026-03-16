@@ -29,7 +29,7 @@ export function parseInlineMarkdown(text: string): StyledSegment[] {
   //   7: ~~strikethrough~~
   //   8: [link text](url) — display text only
   //   9: `code`
-  const regex = /(\*\*\*(.+?)\*\*\*|\*\*(.+?)\*\*|\*(.+?)\*|__(.+?)__|_(.+?)_|~~(.+?)~~|\[([^\]]+)\]\([^)]+\)|`([^`]+)`)/g;
+  const regex = /(\*\*\*(.+?)\*\*\*|\*\*(.+?)\*\*|\*(.+?)\*|(?<!\w)__(.+?)__(?!\w)|(?<!\w)_(.+?)_(?!\w)|~~(.+?)~~|\[([^\]]+)\]\([^)]+\)|`([^`]+)`)/g;
   let pos = 0;
   let match;
   while ((match = regex.exec(text)) !== null) {

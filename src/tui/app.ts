@@ -61,9 +61,12 @@ export async function runTui(
 
   // Create and start the live watcher
   const liveWatcher: LiveWatcher = createLiveWatcher(jsonlPath, (ownerEvents) => {
+    let lastReplyThread: { id: string; line: number } | null = null;
     for (const event of ownerEvents) {
       if (event.type === "reply" && event.threadId && event.text) {
         state.addOwnerReply(event.threadId, event.text, event.ts);
+        const thread = state.threads.find((t) => t.id === event.threadId);
+        if (thread) lastReplyThread = { id: thread.id, line: thread.line };
         // If the thread popup is open for this thread, push the message in
         if (activeOverlay?.addMessage && activeOverlay?.threadId === event.threadId) {
           activeOverlay.addMessage({ author: "owner", text: event.text, ts: event.ts });
@@ -71,6 +74,10 @@ export async function runTui(
       }
     }
     refreshPager();
+    // Flash notification for AI replies when not viewing that thread
+    if (lastReplyThread && activeOverlay?.threadId !== lastReplyThread.id) {
+      showTransient(`AI replied on line ${lastReplyThread.line}`, "info");
+    }
   });
   liveWatcher.start();
 
@@ -113,8 +120,11 @@ export async function runTui(
 
     buildPagerNodes(pager.lineNode, state, searchQuery, state.unreadThreadIds);
     buildTopBar(topBar, specFile, state, state.unreadCount(), specMtimeChanged);
-    const hasThread = !!state.threadAtLine(state.cursorLine);
-    buildBottomBar(bottomBar, commandBuffer, hasThread);
+    // Don't overwrite transient messages (welcome hint, warnings) during navigation
+    if (!messageTimer) {
+      const hasThread = !!state.threadAtLine(state.cursorLine);
+      buildBottomBar(bottomBar, commandBuffer, hasThread);
+    }
     renderer.requestRender();
   }
 
@@ -291,13 +301,24 @@ export async function runTui(
         }
       },
       onResolve: () => {
+        let didResolve = false;
         if (existingThread) {
           const wasResolved = existingThread.status === "resolved";
+          didResolve = !wasResolved;
           state.resolveThread(existingThread.id);
           state.markRead(existingThread.id);
           appendEvent(jsonlPath, { type: wasResolved ? "unresolve" : "resolve", threadId: existingThread.id, author: "reviewer", ts: Date.now() });
         }
         dismissOverlay();
+        // Auto-advance to next thread only when resolving (not reopening)
+        if (didResolve) {
+          const nextLine = state.nextThread();
+          if (nextLine !== null) {
+            state.cursorLine = nextLine;
+            ensureCursorVisible();
+          }
+        }
+        refreshPager();
       },
       onCancel: () => {
         if (existingThread) state.markRead(existingThread.id);
@@ -455,8 +476,7 @@ export async function runTui(
 
   refreshPager();
   if (state.threads.length === 0) {
-    setBottomBarMessage(bottomBar, "Navigate to a line and press c to comment  |  ? for help", "info");
-    renderer.requestRender();
+    showTransient("Navigate to a line and press c to comment  |  ? for help", "info", 8000);
   }
   renderer.start();
 
@@ -763,6 +783,9 @@ export async function runTui(
                   liveWatcher.start();
                   dismissOverlay();
                   searchQuery = null;
+                  jumpList.length = 0;
+                  jumpList.push(1);
+                  jumpIndex = 0;
                   ensureCursorVisible();
                   refreshPager();
                   showTransient("Spec rewritten \u2014 review cleared", "success", 2500);
@@ -773,18 +796,7 @@ export async function runTui(
           break;
         case "approve":
           unresolvedGate(() => {
-            const confirmOverlay = createConfirm({
-              renderer,
-              message: "Approve spec and proceed to implementation?",
-              onConfirm: () => {
-                dismissOverlay();
-                exitTui(resolve, "approve");
-              },
-              onCancel: () => {
-                dismissOverlay();
-              },
-            });
-            showOverlay(confirmOverlay);
+            exitTui(resolve, "approve");
           });
           break;
         case "next-thread": {
