@@ -107,6 +107,7 @@ function createThreadView(
         onCancel();
         return;
 
+      case "i":
       case "c":
         enterInsert();
         return;

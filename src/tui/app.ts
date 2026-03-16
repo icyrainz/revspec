@@ -685,6 +685,10 @@ export async function runTui(
         }
         case "resolve-all": {
           const { pending } = state.activeThreadCount();
+          if (pending === 0) {
+            showTransient("No pending threads");
+            break;
+          }
           const pendingThreads = state.threads.filter(t => t.status === "pending");
           state.resolveAllPending();
           for (const t of pendingThreads) {
@@ -784,24 +788,28 @@ export async function runTui(
           });
           break;
         case "next-thread": {
-          const next = state.nextThread();
-          if (next !== null) {
+          const nextT = state.nextThread();
+          if (nextT !== null) {
+            const wrapped = nextT <= state.cursorLine;
             savePrevPosition();
-            state.cursorLine = next;
+            state.cursorLine = nextT;
             ensureCursorVisible();
             refreshPager();
+            if (wrapped) showTransient("Wrapped to first thread", "info", 1200);
           } else {
             showTransient("No threads");
           }
           break;
         }
         case "prev-thread": {
-          const prev = state.prevThread();
-          if (prev !== null) {
+          const prevT = state.prevThread();
+          if (prevT !== null) {
+            const wrapped = prevT >= state.cursorLine;
             savePrevPosition();
-            state.cursorLine = prev;
+            state.cursorLine = prevT;
             ensureCursorVisible();
             refreshPager();
+            if (wrapped) showTransient("Wrapped to last thread", "info", 1200);
           } else {
             showTransient("No threads");
           }

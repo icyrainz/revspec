@@ -21,7 +21,7 @@ export const PAGER_HINTS = {
 
 export const THREAD_NORMAL_HINTS: Hint[] = [
   { key: "NORMAL", action: "" },
-  { key: "c", action: "reply" },
+  { key: "i/c", action: "reply" },
   { key: "r", action: "resolve" },
   { key: "q/Esc", action: "close" },
 ];
