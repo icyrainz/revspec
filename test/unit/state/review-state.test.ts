@@ -364,6 +364,91 @@ describe("ReviewState", () => {
     });
   });
 
+  describe("nextHeading", () => {
+    const MD = [
+      "# Introduction",       // line 1
+      "Some text",             // line 2
+      "## Overview",           // line 3
+      "More text",             // line 4
+      "### Details",           // line 5
+      "## API",                // line 6
+      "# Conclusion",          // line 7
+    ];
+
+    it("finds next h1 after cursor", () => {
+      const state = new ReviewState(MD, []);
+      state.cursorLine = 1;
+      expect(state.nextHeading(1)).toBe(7);
+    });
+
+    it("finds next h2 after cursor", () => {
+      const state = new ReviewState(MD, []);
+      state.cursorLine = 3;
+      expect(state.nextHeading(2)).toBe(6);
+    });
+
+    it("finds next h3 after cursor", () => {
+      const state = new ReviewState(MD, []);
+      state.cursorLine = 1;
+      expect(state.nextHeading(3)).toBe(5);
+    });
+
+    it("wraps around when no heading after cursor", () => {
+      const state = new ReviewState(MD, []);
+      state.cursorLine = 7;
+      expect(state.nextHeading(1)).toBe(1);
+    });
+
+    it("returns null when no headings of that level", () => {
+      const state = new ReviewState(["no headings", "here"], []);
+      state.cursorLine = 1;
+      expect(state.nextHeading(1)).toBeNull();
+    });
+
+    it("does not match ## when looking for #", () => {
+      const state = new ReviewState(MD, []);
+      state.cursorLine = 1;
+      // Next h1 should skip ## Overview (line 3) and ## API (line 6)
+      expect(state.nextHeading(1)).toBe(7);
+    });
+  });
+
+  describe("prevHeading", () => {
+    const MD = [
+      "# Introduction",       // line 1
+      "Some text",             // line 2
+      "## Overview",           // line 3
+      "More text",             // line 4
+      "### Details",           // line 5
+      "## API",                // line 6
+      "# Conclusion",          // line 7
+    ];
+
+    it("finds prev h1 before cursor", () => {
+      const state = new ReviewState(MD, []);
+      state.cursorLine = 7;
+      expect(state.prevHeading(1)).toBe(1);
+    });
+
+    it("finds prev h2 before cursor", () => {
+      const state = new ReviewState(MD, []);
+      state.cursorLine = 7;
+      expect(state.prevHeading(2)).toBe(6);
+    });
+
+    it("wraps around when no heading before cursor", () => {
+      const state = new ReviewState(MD, []);
+      state.cursorLine = 1;
+      expect(state.prevHeading(1)).toBe(7);
+    });
+
+    it("returns null when no headings of that level", () => {
+      const state = new ReviewState(["no headings"], []);
+      state.cursorLine = 1;
+      expect(state.prevHeading(2)).toBeNull();
+    });
+  });
+
   describe("unread tracking", () => {
     it("tracks unread owner replies", () => {
       const state = new ReviewState(["line1", "line2"], []);
