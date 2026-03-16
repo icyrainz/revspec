@@ -95,6 +95,7 @@ export function createHelp(opts: {
     "  ]1/[1     Next/prev h1 heading",
     "  ]2/[2     Next/prev h2 heading",
     "  ]3/[3     Next/prev h3 heading",
+    "  Ctrl+o/i  Jump list back/forward",
     "  ''        Jump to previous position",
     "  H/M/L     Screen top/middle/bottom",
   ]);
@@ -104,7 +105,7 @@ export function createHelp(opts: {
     "  r         Resolve thread (toggle)",
     "  R         Resolve all pending",
     "  dd        Delete thread",
-    "  t         List threads",
+    "  t         List threads (Ctrl+f to filter)",
     "  S         Submit for rewrite",
     "  A         Approve spec",
   ]);

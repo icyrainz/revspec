@@ -62,7 +62,7 @@ describe("buildPagerContent", () => {
     const content = buildPagerContent(state);
     const lines = content.split("\n");
 
-    expect(lines[1]).toContain("\u2713");
+    expect(lines[1]).toContain("=");
   });
 
   it("shows gutter indicator for outdated threads", () => {
@@ -85,7 +85,7 @@ describe("buildPagerContent", () => {
 
     expect(lines[0]).toContain("\u258c");
     expect(lines[1]).toContain("\u258c");
-    expect(lines[2]).toContain("\u2713");
+    expect(lines[2]).toContain("=");
     expect(lines[3]).toContain("\u258c");
   });
 

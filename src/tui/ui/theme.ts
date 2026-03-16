@@ -29,9 +29,9 @@ export const theme = {
 
 export const STATUS_ICONS: Record<string, string> = {
   open: "\u258c",     // ▌ half block
-  pending: "\u25cb",  // ○ circle
-  resolved: "\u2713", // ✓ checkmark
-  outdated: "\u223c", // ∼ tilde
+  pending: "\u2588",  // █ full block
+  resolved: "=",
+  outdated: "-",
 };
 
 export const SPLIT_BORDER = {

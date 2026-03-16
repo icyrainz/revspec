@@ -27,6 +27,7 @@ import { createConfirm } from "./confirm";
 import { createHelp } from "./help";
 import { createSpinner } from "./spinner";
 import { createKeybindRegistry, type KeyBinding } from "./ui/keybinds";
+import { theme } from "./ui/theme";
 
 export async function runTui(
   specFile: string,
@@ -123,10 +124,29 @@ export async function runTui(
   // Command mode state
   let commandBuffer: string | null = null;
 
-  // Previous position for '' jump-back
-  let prevCursorLine: number = 1;
+  // Jump list — mirrors vim's :jumps behavior.
+  // pushJump() is called BEFORE each big jump to record the departure position.
+  // Ctrl+O traverses backward, Ctrl+I forward. Making a new jump while in the
+  // middle of the list discards forward history (same as vim).
+  const jumpList: number[] = [1];
+  let jumpIndex: number = 0;
+  const MAX_JUMP_LIST = 50;
+
+  function pushJump(): void {
+    const cur = state.cursorLine;
+    // Discard forward history when making a new jump from the middle
+    if (jumpIndex < jumpList.length - 1) {
+      jumpList.splice(jumpIndex + 1);
+    }
+    // Don't push duplicate of the list tail
+    if (jumpList.length > 0 && jumpList[jumpList.length - 1] === cur) return;
+    jumpList.push(cur);
+    if (jumpList.length > MAX_JUMP_LIST) jumpList.shift();
+    jumpIndex = jumpList.length - 1;
+  }
+
   function savePrevPosition(): void {
-    prevCursorLine = state.cursorLine;
+    pushJump();
   }
 
   // Map visual row back to spec line number (for H/M/L)
@@ -203,7 +223,7 @@ export async function runTui(
       const { open, pending } = state.activeThreadCount();
       const total = open + pending;
       if (total > 0) {
-        setBottomBarMessage(bottomBar, ` \u26a0 ${total} unresolved thread(s). Use :q! to force quit`);
+        setBottomBarMessage(bottomBar, `${total} unresolved thread(s). Use :q! to force quit`, "warn");
         renderer.requestRender();
         setTimeout(() => { refreshPager(); }, 2000);
         return "stay";
@@ -224,7 +244,7 @@ export async function runTui(
       refreshPager();
       return "stay";
     }
-    setBottomBarMessage(bottomBar, ` Unknown command: ${cmd}`);
+    setBottomBarMessage(bottomBar, `Unknown command: ${cmd}`, "warn");
     renderer.requestRender();
     setTimeout(() => { refreshPager(); }, 1500);
     return "stay";
@@ -273,6 +293,7 @@ export async function runTui(
         dismissOverlay();
       },
       onCancel: () => {
+        if (existingThread) state.markRead(existingThread.id);
         dismissOverlay();
       },
     });
@@ -426,6 +447,10 @@ export async function runTui(
   const keybinds = createKeybindRegistry(bindings, 300);
 
   refreshPager();
+  if (state.threads.length === 0) {
+    setBottomBarMessage(bottomBar, "Navigate to a line and press c to start reviewing", "info");
+    renderer.requestRender();
+  }
   renderer.start();
 
   // 8. Set up keybinding handler
@@ -485,6 +510,38 @@ export async function runTui(
       // Ctrl+C to exit
       if (key.ctrl && key.name === "c") {
         exitTui(resolve, "session-end");
+        return;
+      }
+
+      // Ctrl+O: jump back in jump list
+      if (key.ctrl && key.name === "o") {
+        // Starting backward traversal from head — save current position first
+        // (without splicing forward history, unlike pushJump)
+        if (jumpIndex === jumpList.length - 1) {
+          const cur = state.cursorLine;
+          if (jumpList[jumpIndex] !== cur) {
+            jumpList.push(cur);
+            if (jumpList.length > MAX_JUMP_LIST) jumpList.shift();
+            jumpIndex = jumpList.length - 1;
+          }
+        }
+        if (jumpIndex > 0) {
+          jumpIndex--;
+          state.cursorLine = Math.min(jumpList[jumpIndex], state.lineCount);
+          ensureCursorVisible();
+          refreshPager();
+        }
+        return;
+      }
+
+      // Ctrl+I / Tab: jump forward in jump list
+      if ((key.ctrl && key.name === "i") || key.name === "tab") {
+        if (jumpIndex < jumpList.length - 1) {
+          jumpIndex++;
+          state.cursorLine = Math.min(jumpList[jumpIndex], state.lineCount);
+          ensureCursorVisible();
+          refreshPager();
+        }
         return;
       }
 
@@ -563,31 +620,47 @@ export async function runTui(
           if (searchQuery) {
             const match = findNextMatch(state.specLines, searchQuery, state.cursorLine, 1);
             if (match !== null) {
+              const wrapped = match <= state.cursorLine;
               savePrevPosition();
               state.cursorLine = match;
               ensureCursorVisible();
+              refreshPager();
+              if (wrapped) {
+                setBottomBarMessage(bottomBar, "Search wrapped to top", "info");
+                renderer.requestRender();
+                setTimeout(() => { refreshPager(); }, 1200);
+              }
+            } else {
+              refreshPager();
             }
           } else {
-            setBottomBarMessage(bottomBar, " No active search \u2014 use / to search");
+            setBottomBarMessage(bottomBar, "No active search \u2014 use / to search");
             renderer.requestRender();
             setTimeout(() => { refreshPager(); }, 1500);
           }
-          refreshPager();
           break;
         case "search-prev":
           if (searchQuery) {
             const match = findNextMatch(state.specLines, searchQuery, state.cursorLine, -1);
             if (match !== null) {
+              const wrapped = match >= state.cursorLine;
               savePrevPosition();
               state.cursorLine = match;
               ensureCursorVisible();
+              refreshPager();
+              if (wrapped) {
+                setBottomBarMessage(bottomBar, "Search wrapped to bottom", "info");
+                renderer.requestRender();
+                setTimeout(() => { refreshPager(); }, 1200);
+              }
+            } else {
+              refreshPager();
             }
           } else {
-            setBottomBarMessage(bottomBar, " No active search \u2014 use / to search");
+            setBottomBarMessage(bottomBar, "No active search \u2014 use / to search");
             renderer.requestRender();
             setTimeout(() => { refreshPager(); }, 1500);
           }
-          refreshPager();
           break;
         case "comment":
           showCommentInput();
@@ -603,14 +676,13 @@ export async function runTui(
             state.markRead(thread.id);
             appendEvent(jsonlPath, { type: wasResolved ? "unresolve" : "resolve", threadId: thread.id, author: "reviewer", ts: Date.now() });
             refreshPager();
-            const msg = wasResolved
-              ? ` \u21a9 Reopened thread #${thread.id}`
-              : ` \u2714 Resolved thread #${thread.id}`;
-            setBottomBarMessage(bottomBar, msg);
+            setBottomBarMessage(bottomBar,
+              wasResolved ? `Reopened thread #${thread.id}` : `Resolved thread #${thread.id}`,
+              "success");
             renderer.requestRender();
             setTimeout(() => { refreshPager(); }, 1500);
           } else {
-            setBottomBarMessage(bottomBar, " No thread on this line");
+            setBottomBarMessage(bottomBar, "No thread on this line");
             renderer.requestRender();
             setTimeout(() => { refreshPager(); }, 1500);
           }
@@ -624,7 +696,7 @@ export async function runTui(
             appendEvent(jsonlPath, { type: "resolve", threadId: t.id, author: "reviewer", ts: Date.now() });
           }
           refreshPager();
-          setBottomBarMessage(bottomBar, ` \u2714 Resolved ${pending} pending thread(s)`);
+          setBottomBarMessage(bottomBar, `Resolved ${pending} pending thread(s)`, "success");
           renderer.requestRender();
           setTimeout(() => { refreshPager(); }, 1500);
           break;
@@ -632,7 +704,7 @@ export async function runTui(
         case "delete-draft": {
           const thread = state.threadAtLine(state.cursorLine);
           if (!thread) {
-            setBottomBarMessage(bottomBar, " No thread on this line");
+            setBottomBarMessage(bottomBar, "No thread on this line");
             renderer.requestRender();
             setTimeout(() => { refreshPager(); }, 1500);
             break;
@@ -646,7 +718,7 @@ export async function runTui(
               state.deleteThread(thread.id);
               appendEvent(jsonlPath, { type: "delete", threadId: thread.id, author: "reviewer", ts: Date.now() });
               refreshPager();
-              setBottomBarMessage(bottomBar, ` \u2714 Deleted thread #${thread.id}`);
+              setBottomBarMessage(bottomBar, `Deleted thread #${thread.id}`, "success");
               renderer.requestRender();
               setTimeout(() => { refreshPager(); }, 1500);
             },
@@ -659,16 +731,17 @@ export async function runTui(
         }
         case "submit":
           if (state.threads.length === 0) {
-            setBottomBarMessage(bottomBar, " No threads to submit.");
+            setBottomBarMessage(bottomBar, "No threads to submit.");
             renderer.requestRender();
             break;
           }
           unresolvedGate(() => {
             appendEvent(jsonlPath, { type: "submit", author: "reviewer", ts: Date.now() });
 
+            const count = state.threads.length;
             const spinnerOverlay = createSpinner({
               renderer,
-              message: "Waiting for agent to update spec...",
+              message: `Submitting ${count} thread${count === 1 ? "" : "s"}...`,
               onCancel: () => {
                 clearInterval(activeSpecPoll!);
                 activeSpecPoll = null;
@@ -678,7 +751,7 @@ export async function runTui(
                 clearInterval(activeSpecPoll!);
                 activeSpecPoll = null;
                 dismissOverlay();
-                setBottomBarMessage(bottomBar, " \u26a0 Agent did not update spec. Press S to retry.");
+                setBottomBarMessage(bottomBar, "Agent did not update spec. Press S to retry.", "warn");
                 renderer.requestRender();
                 setTimeout(() => { refreshPager(); }, 3000);
               },
@@ -701,6 +774,9 @@ export async function runTui(
                   searchQuery = null;
                   ensureCursorVisible();
                   refreshPager();
+                  setBottomBarMessage(bottomBar, "Spec rewritten \u2014 review cleared", "success");
+                  renderer.requestRender();
+                  setTimeout(() => { refreshPager(); }, 2500);
                 }
               } catch {}
             }, 500);
@@ -730,7 +806,7 @@ export async function runTui(
             ensureCursorVisible();
             refreshPager();
           } else {
-            setBottomBarMessage(bottomBar, " No threads");
+            setBottomBarMessage(bottomBar, "No threads");
             renderer.requestRender();
             setTimeout(() => { refreshPager(); }, 1500);
           }
@@ -744,7 +820,7 @@ export async function runTui(
             ensureCursorVisible();
             refreshPager();
           } else {
-            setBottomBarMessage(bottomBar, " No threads");
+            setBottomBarMessage(bottomBar, "No threads");
             renderer.requestRender();
             setTimeout(() => { refreshPager(); }, 1500);
           }
@@ -758,7 +834,7 @@ export async function runTui(
             ensureCursorVisible();
             refreshPager();
           } else {
-            setBottomBarMessage(bottomBar, " No unread replies");
+            setBottomBarMessage(bottomBar, "No unread replies");
             renderer.requestRender();
             setTimeout(() => { refreshPager(); }, 1500);
           }
@@ -772,7 +848,7 @@ export async function runTui(
             ensureCursorVisible();
             refreshPager();
           } else {
-            setBottomBarMessage(bottomBar, " No unread replies");
+            setBottomBarMessage(bottomBar, "No unread replies");
             renderer.requestRender();
             setTimeout(() => { refreshPager(); }, 1500);
           }
@@ -789,7 +865,7 @@ export async function runTui(
             ensureCursorVisible();
             refreshPager();
           } else {
-            setBottomBarMessage(bottomBar, ` No h${level} headings`);
+            setBottomBarMessage(bottomBar, `No h${level} headings`);
             renderer.requestRender();
             setTimeout(() => { refreshPager(); }, 1500);
           }
@@ -806,18 +882,25 @@ export async function runTui(
             ensureCursorVisible();
             refreshPager();
           } else {
-            setBottomBarMessage(bottomBar, ` No h${level} headings`);
+            setBottomBarMessage(bottomBar, `No h${level} headings`);
             renderer.requestRender();
             setTimeout(() => { refreshPager(); }, 1500);
           }
           break;
         }
         case "jump-back": {
-          const tmp = state.cursorLine;
-          state.cursorLine = prevCursorLine;
-          prevCursorLine = tmp;
-          ensureCursorVisible();
-          refreshPager();
+          // '' swaps between current position and last jump entry
+          if (jumpList.length > 1) {
+            const cur = state.cursorLine;
+            const prevIdx = jumpIndex > 0 ? jumpIndex - 1 : 0;
+            const target = jumpList[prevIdx];
+            // Record current position at our spot so '' can swap back
+            jumpList[jumpIndex] = cur;
+            jumpIndex = prevIdx;
+            state.cursorLine = Math.min(target, state.lineCount);
+            ensureCursorVisible();
+            refreshPager();
+          }
           break;
         }
         case "screen-top": {

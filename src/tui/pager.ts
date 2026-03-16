@@ -45,7 +45,7 @@ export function buildPagerContent(state: ReviewState, searchQuery?: string | nul
       if (isUnread) {
         indicator = "\u2588";
       } else if (thread.status === "resolved") {
-        indicator = "\u2713";
+        indicator = "=";
       } else {
         indicator = "\u258c";
       }
@@ -104,7 +104,7 @@ export function buildPagerNodes(lineNode: TextRenderable, state: ReviewState, se
         indicator = "\u2588"; // █ full block — unread reply
         indicatorColor = theme.yellow;
       } else if (thread.status === "resolved") {
-        indicator = "\u2713"; // ✓ resolved
+        indicator = "="; // resolved
         indicatorColor = theme.green;
       } else {
         indicator = "\u258c"; // ▌ half block — has thread
@@ -171,8 +171,8 @@ export function buildPagerNodes(lineNode: TextRenderable, state: ReviewState, se
         lineNode.add(TextNodeRenderable.fromString(gutterBlank, { fg: theme.textDim }));
         renderTableBorder(lineNode, tableBlock.colWidths, "bottom");
       }
-    } else if (searchQuery) {
-      // When searching, show colored match segments (no markdown styling)
+    } else if (searchQuery && specText.toLowerCase().includes(searchQuery.toLowerCase())) {
+      // Line contains search match — show colored match segments (no markdown styling)
       const escaped = searchQuery.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
       const caseSensitive = searchQuery !== searchQuery.toLowerCase();
       const searchRegex = new RegExp(`(${escaped})`, caseSensitive ? "g" : "gi");

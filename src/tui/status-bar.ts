@@ -60,18 +60,45 @@ export function buildTopBar(
     t.add(TextNodeRenderable.fromString("!! Spec changed externally", { fg: theme.red, attributes: TextAttributes.BOLD }));
   }
 
-  // Cursor position
+  // Cursor position + scroll percentage
+  const posLabel = state.cursorLine <= 1 ? "Top"
+    : state.cursorLine >= state.lineCount ? "Bot"
+    : `${Math.round(((state.cursorLine - 1) / (state.lineCount - 1)) * 100)}%`;
   t.add(TextNodeRenderable.fromString("  \u00b7  ", { fg: theme.textDim }));
-  t.add(TextNodeRenderable.fromString(`L${state.cursorLine}/${state.lineCount}`, { fg: theme.textMuted }));
+  t.add(TextNodeRenderable.fromString(`L${state.cursorLine}/${state.lineCount} ${posLabel}`, { fg: theme.textMuted }));
 }
 
+export type MessageIcon = "warn" | "success" | "info";
+
+const ICON_MAP: Record<MessageIcon, { symbol: string; fg: string }> = {
+  warn:    { symbol: "!", fg: theme.yellow! },
+  success: { symbol: "*", fg: theme.green! },
+  info:    { symbol: "-", fg: theme.blue! },
+};
+
 /**
- * Set a transient message on the bottom bar (using TextNodes, not .content).
+ * Set a transient message on the bottom bar.
+ * With icon: renders as " ⚠ │ message text"
+ * Without icon: renders as " message text"
  */
-export function setBottomBarMessage(bar: BottomBarComponents, message: string, fg?: string): void {
+export function setBottomBarMessage(
+  bar: BottomBarComponents,
+  message: string,
+  iconOrFg?: MessageIcon | string,
+): void {
   const t = bar.text;
   t.clear();
-  t.add(TextNodeRenderable.fromString(message, { fg: fg ?? theme.text }));
+
+  // Detect if it's an icon type or a raw fg color
+  const icon = iconOrFg && iconOrFg in ICON_MAP ? ICON_MAP[iconOrFg as MessageIcon] : null;
+  const fg = icon ? icon.fg : (iconOrFg as string | undefined) ?? theme.text;
+
+  if (icon) {
+    t.add(TextNodeRenderable.fromString(` ${icon.symbol} `, { fg: icon.fg }));
+    t.add(TextNodeRenderable.fromString(message, { fg: fg! }));
+  } else {
+    t.add(TextNodeRenderable.fromString(` ${message}`, { fg: fg! }));
+  }
 }
 
 /**

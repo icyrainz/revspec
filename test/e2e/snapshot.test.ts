@@ -174,6 +174,9 @@ describe("revspec E2E snapshots", () => {
 
   test("bottom bar hides resolve on non-thread line", async () => {
     harness = await createHarness(SPEC);
+    // First-time hint shown on initial render; press j to clear it
+    harness.sendKeys("j");
+    await harness.wait();
     const lines = harness.capture().split("\n");
     const bottom = lines[lines.length - 1] || "";
     expect(bottom).toContain("navigate");

@@ -51,9 +51,11 @@ export function createSpinner(opts: {
   container.add(text);
 
   let frame = 0;
+  const startTime = Date.now();
   const spinInterval = setInterval(() => {
     frame = (frame + 1) % SPINNER_FRAMES.length;
-    text.content = `${SPINNER_FRAMES[frame]} ${message}`;
+    const elapsed = Math.floor((Date.now() - startTime) / 1000);
+    text.content = `${SPINNER_FRAMES[frame]} ${message} (${elapsed}s)`;
     renderer.requestRender();
   }, 80);
 
