@@ -83,13 +83,17 @@ export function parseMarkdownLine(line: string): StyledSegment[] {
   if (headingMatch) {
     const level = headingMatch[1].length;
     const color = level <= 2 ? theme.blue : level === 3 ? theme.mauve : theme.textMuted;
+    const prefix = headingMatch[1] + " ";
     // Parse inline markdown within heading text
     const inner = parseInlineMarkdown(headingMatch[2]);
-    return inner.map((s) => ({
-      ...s,
-      fg: s.fg ?? color,
-      attributes: (s.attributes ?? 0) | TextAttributes.BOLD,
-    }));
+    return [
+      { text: prefix, fg: theme.textDim, attributes: TextAttributes.BOLD },
+      ...inner.map((s) => ({
+        ...s,
+        fg: s.fg ?? color,
+        attributes: (s.attributes ?? 0) | TextAttributes.BOLD,
+      })),
+    ];
   }
 
   // Horizontal rule: --- or *** or ___
