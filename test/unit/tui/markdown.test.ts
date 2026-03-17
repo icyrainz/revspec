@@ -56,4 +56,59 @@ describe("parseMarkdownLine", () => {
     expect(segments).toHaveLength(1);
     expect(segments[0].text).toBe("plain text with some_var");
   });
+
+  describe("headings", () => {
+    it("keeps # prefix for h1", () => {
+      const segments = parseMarkdownLine("# Title");
+      expect(segments[0].text).toBe("# ");
+      expect(segments[0].attributes).toBe(TextAttributes.BOLD);
+      expect(segments[1].text).toBe("Title");
+      expect(segments[1].attributes).toBe(TextAttributes.BOLD);
+    });
+
+    it("keeps ## prefix for h2", () => {
+      const segments = parseMarkdownLine("## Subtitle");
+      expect(segments[0].text).toBe("## ");
+      expect(segments[1].text).toBe("Subtitle");
+    });
+
+    it("keeps ### prefix for h3", () => {
+      const segments = parseMarkdownLine("### Section");
+      expect(segments[0].text).toBe("### ");
+      expect(segments[1].text).toBe("Section");
+    });
+
+    it("keeps ###### prefix for h6", () => {
+      const segments = parseMarkdownLine("###### Deep");
+      expect(segments[0].text).toBe("###### ");
+      expect(segments[1].text).toBe("Deep");
+    });
+
+    it("prefix uses dim color, content uses heading color", () => {
+      const segments = parseMarkdownLine("# Title");
+      // Prefix is dim
+      expect(segments[0].fg).toBe("#6c7086"); // theme.textDim
+      // Content is blue for h1
+      expect(segments[1].fg).toBe("#89b4fa"); // theme.blue
+    });
+
+    it("h3 content uses mauve color", () => {
+      const segments = parseMarkdownLine("### Section");
+      expect(segments[1].fg).toBe("#cba6f7"); // theme.mauve
+    });
+
+    it("h4+ content uses muted color", () => {
+      const segments = parseMarkdownLine("#### Detail");
+      expect(segments[1].fg).toBe("#a6adc8"); // theme.textMuted
+    });
+
+    it("parses inline markdown within heading text", () => {
+      const segments = parseMarkdownLine("## A **bold** heading");
+      expect(segments[0].text).toBe("## ");
+      expect(segments[1].text).toBe("A ");
+      expect(segments[2].text).toBe("bold");
+      expect(segments[2].attributes).toBe(TextAttributes.BOLD);
+      expect(segments[3].text).toBe(" heading");
+    });
+  });
 });

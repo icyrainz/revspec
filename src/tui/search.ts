@@ -22,6 +22,35 @@ export interface SearchOverlay {
   cleanup: () => void;
 }
 
+export interface SearchMatch {
+  lineNumber: number; // 1-based
+  query: string;      // original query (preserves case for n/N)
+}
+
+/**
+ * Search forward from cursorLine (1-based), wrapping around.
+ * Uses smartcase: case-sensitive if query has uppercase, otherwise case-insensitive.
+ * Returns null if no match found.
+ */
+export function findNextMatch(
+  specLines: string[],
+  cursorLine: number,
+  raw: string,
+): SearchMatch | null {
+  const caseSensitive = raw !== raw.toLowerCase();
+  const query = caseSensitive ? raw : raw.toLowerCase();
+
+  const total = specLines.length;
+  for (let offset = 1; offset <= total; offset++) {
+    const i = (cursorLine - 1 + offset) % total;
+    const line = caseSensitive ? specLines[i] : specLines[i].toLowerCase();
+    if (line.includes(query)) {
+      return { lineNumber: i + 1, query: raw };
+    }
+  }
+  return null;
+}
+
 /**
  * Create a search overlay at the bottom of the screen.
  * On Enter: search forward from cursorLine, wrapping around.
@@ -99,19 +128,10 @@ export function createSearch(opts: SearchOptions): SearchOverlay {
         return;
       }
 
-      // Smartcase: if query has any uppercase, case-sensitive; otherwise case-insensitive
-      const caseSensitive = raw !== raw.toLowerCase();
-      const query = caseSensitive ? raw : raw.toLowerCase();
-
-      // Search forward from cursor, wrapping around
-      const total = specLines.length;
-      for (let offset = 1; offset <= total; offset++) {
-        const i = (cursorLine - 1 + offset) % total;
-        const line = caseSensitive ? specLines[i] : specLines[i].toLowerCase();
-        if (line.includes(query)) {
-          onResult(i + 1, raw); // 1-based line number + original query (preserves case for n/N)
-          return;
-        }
+      const match = findNextMatch(specLines, cursorLine, raw);
+      if (match) {
+        onResult(match.lineNumber, match.query);
+        return;
       }
 
       // No match found — show feedback in the input placeholder, keep search open
